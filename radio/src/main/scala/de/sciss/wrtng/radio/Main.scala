@@ -16,6 +16,11 @@ package radio
 
 import java.net.InetSocketAddress
 
+import de.sciss.file.File
+import de.sciss.synth.io.AudioFile
+
+import scala.util.control.NonFatal
+
 object Main extends MainLike {
   protected val pkgLast = "radio"
 
@@ -61,6 +66,18 @@ object Main extends MainLike {
       opt[Int] ("gqrx-port")
         .text (s"TCP port of gqrx remote control (default: ${default.gqrxTCPPort})")
         .action { (v, c) => c.copy(gqrxTCPPort = v) }
+
+      opt[File] ('f', "file")
+        .text (s"Use pre-captured radio file instead of real-time capture through gqrx.")
+        .validate { v =>
+          try {
+            val spec = AudioFile.readSpec(v)
+            if (spec.numChannels == 1) success else failure(s"Must be monophonic: $v")
+          } catch {
+            case NonFatal(ex) => failure(s"Cannot identify file $v: ${ex.getMessage}")
+          }
+        }
+        .action { (v, c) => c.copy(offline = Some(v)) }
     }
     p.parse(args, default).fold(sys.exit(1)) { config =>
       val localSocketAddress = Network.initConfig(config, this)

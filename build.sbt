@@ -7,6 +7,7 @@ lazy val projectVersion = "0.1.0-SNAPSHOT"
 
 lazy val soundProcessesVersion  = "3.14.1"
 lazy val fscapeVersion          = "2.9.1-SNAPSHOT"
+lazy val audioFileVersion       = "1.4.6"
 lazy val scoptVersion           = "3.7.0"
 lazy val fileUtilVersion        = "1.1.3"
 //lazy val pi4jVersion            = "1.1"
@@ -79,7 +80,10 @@ lazy val radio = Project(id = s"$baseNameL-radio", base = file("radio"))
   .settings(buildInfoSettings)
   .settings(
     name := s"$baseName Radio",
-    buildInfoPackage := "de.sciss.wrtng.radio"
+    buildInfoPackage := "de.sciss.wrtng.radio",
+    libraryDependencies ++= Seq(
+      "de.sciss" %% "scalaaudiofile" % audioFileVersion
+    )
   )
 
 // ---- debian package ----

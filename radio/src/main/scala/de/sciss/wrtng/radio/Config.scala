@@ -16,6 +16,8 @@ package radio
 
 import java.net.InetSocketAddress
 
+import de.sciss.file.File
+
 /**
   * @param dumpOSC              if `true`, print incoming and outgoing OSC packets
   * @param isLaptop             if `true`, assume a test run from laptop, no GPIO etc.
@@ -32,6 +34,10 @@ final case class Config(
                          dot                : Int           = -1,
                          log                : Boolean       = false,
                          gqrxConfig         : String        = "wrtng.conf",
-                         gqrxTCPPort        : Int           = 7356
+                         gqrxTCPPort        : Int           = 7356,
+                         offline            : Option[File]  = None
                        )
-  extends ConfigLike
+  extends ConfigLike {
+
+  def isLive: Boolean = offline.isEmpty
+}

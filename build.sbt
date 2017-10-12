@@ -82,6 +82,7 @@ lazy val sound = Project(id = soundNameL, base = file("sound"))
   .settings(
     name := soundName,
     buildInfoPackage := "de.sciss.wrtng.sound",
+    mainClass in Compile := Some("de.sciss.wrtng.sound.Main"),
     libraryDependencies ++= Seq(
       "de.sciss" %% "soundprocesses-core" % soundProcessesVersion,
       "de.sciss" %% "fscape-lucre"        % fscapeVersion
@@ -98,6 +99,7 @@ lazy val radio = Project(id = radioNameL, base = file("radio"))
   .settings(
     name := radioName,
     buildInfoPackage := "de.sciss.wrtng.radio",
+    mainClass in Compile := Some("de.sciss.wrtng.radio.Main"),
     libraryDependencies ++= Seq(
       "de.sciss" %% "scalaaudiofile" % audioFileVersion
     )

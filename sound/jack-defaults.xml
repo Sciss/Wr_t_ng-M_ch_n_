@@ -1,0 +1,20 @@
+<!DOCTYPE patchbay>
+<patchbay version="0.3.12" name="jack-defaults">
+ <output-sockets>
+  <socket exclusive="off" client="SuperCollider" type="jack-audio" name="SuperCollider">
+   <plug>out_1</plug>
+   <plug>out_2</plug>
+  </socket>
+ </output-sockets>
+ <input-sockets>
+  <socket exclusive="off" client="system" type="jack-audio" name="system">
+   <plug>playback_1</plug>
+   <plug>playback_2</plug>
+  </socket>
+ </input-sockets>
+ <slots/>
+ <cables>
+  <cable output="SuperCollider" input="system" type="jack-audio"/>
+ </cables>
+</patchbay>
+

@@ -14,9 +14,15 @@
 package de.sciss.wrtng
 package radio
 
-object Offline {
-  def apply(config: Config): Offline = ???
-}
-trait Offline extends Source {
+import de.sciss.synth.io.AudioFile
 
+object Offline {
+  def apply(config: Config): Offline = {
+    val f = config.offline.getOrElse(
+      throw new IllegalArgumentException("Must have a config with a specific 'offline' file"))
+    val spec = AudioFile.readSpec(f)
+    require(spec.numChannels == 1, s"File '$f' has ${spec.numChannels} channels, mono required")
+    new impl.OfflineImpl(f, spec)
+  }
 }
+trait Offline extends Source

@@ -86,12 +86,9 @@ object Main extends MainLike {
   }
 
   def run(localSocketAddress: InetSocketAddress, config: Config): Unit = {
+    val c = OSCClient(config, localSocketAddress)
+    c.init()
 
-    ???
-
-//    val c = OSCClient(config, localSocketAddress)
-//    c.init()
-
-    // new Heartbeat(c)
+    new Heartbeat(c)
   }
 }

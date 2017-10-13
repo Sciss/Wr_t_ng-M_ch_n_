@@ -183,7 +183,7 @@ class MainFrame(c: OSCClient) {
     if (instances.nonEmpty) {
       val isSound = instances.head.version.contains("sound")
       val dir = lastUpdate.flatMap(_.parentOption).getOrElse {
-        userHome / "Documents" / "devel" / "Schwaermen" / (if (isSound) "sound" else "radio") / "target"
+        userHome / "Documents" / "devel" / "Wr_t_ng-M_ch_n_" / (if (isSound) "sound" else "radio") / "target"
       }
       val candidates  = dir.children(_.ext == "deb")
       // this also works for `-SNAPSHOT_all.deb` vs. `_all.deb`
@@ -386,7 +386,7 @@ class MainFrame(c: OSCClient) {
     override def closeOperation(): Unit =
       sys.exit(0)
 
-    title = "Schwärmen Control"
+    title = Main.namePkg
     contents = component
     pack().centerOnScreen()
     open()

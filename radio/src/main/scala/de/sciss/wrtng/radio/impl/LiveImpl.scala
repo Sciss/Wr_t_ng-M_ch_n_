@@ -170,14 +170,17 @@ final class LiveImpl(config: Config) extends Live {
     deleteRecordings()
     import sys.process._
     Seq("gqrx", "-c", config.gqrxConfig).run()
-    Thread.sleep(4000)
-    Seq("xdotool", "search", "--onlyvisible", "--classname", "gqrx", "windowactivate").!
+    Thread.sleep(8000)  // bloody slow on the pi
+    val xdo = "xdotool"
+    val windowId = Seq(xdo, "search", "--onlyvisible", "--classname", "gqrx").!! // .toInt
+    Seq(xdo, "windowactivate", windowId).!
     Thread.sleep(1000)
     Seq("xdotool", "key", "ctrl+d").!   // start DSP
-//    if (!config.isLaptop) {
-//      Thread.sleep(1000)
-//      // XXX TODO --- mousepress to activate TCP
-//    }
+    if (!config.isLaptop) {
+      // f*cking rpi binary doesn't restore TCP enabled preferences
+      Thread.sleep(1000)
+      Seq(xdo, "mousemove", "--window", windowId, "286", "46", "click", "1").!
+    }
     Thread.sleep(1000)
     actor ! Init
     this

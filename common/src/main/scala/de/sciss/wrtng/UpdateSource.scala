@@ -12,42 +12,44 @@
  */
 
 package de.sciss.wrtng
-package control
 
 import java.io.RandomAccessFile
+import java.net.SocketAddress
 import java.nio.ByteBuffer
 
 import de.sciss.file._
 import de.sciss.osc
 
-final class UpdateSource(val uid: Int, config: Config, c: OSCClient, val instance: Status, val debFile: File) {
-  private[this] val raf         = new RandomAccessFile(debFile, "r")
-  val               size: Long  = raf.length()
+abstract class UpdateSource(val c: OSCClientLike, val target: SocketAddress, val file: File) {
+  // ---- abstract ----
+
+  def begin(): Unit
+
+  protected def sendData(offset: Long, bytes: ByteBuffer): Unit
+
+  // ---- impl ----
+
+  private[this] val raf         = new RandomAccessFile(file, "r")
+  private[this] val _size       = raf.length()
   private[this] val ch          = raf.getChannel
-  //  private[this] val promise     = Promise[Unit]
-  private[this] val target      = Network.dotToSocketMap(instance.dot)
   private[this] val buf         = ByteBuffer.allocate(6 * 1024)
 
-  //  def result: Future[Unit] = promise.future
+  final def size: Long = _size
 
-  private def reply(p: osc.Packet): Unit =
-    c.tx.send(p, target)
+  protected final def reply(p: osc.Packet): Unit =
+    c.sendNow(p, target)
 
-  def begin(): Unit = {
-    reply(Network.OscUpdateInit(uid = uid, size = size))
-  }
-
-  def sendNext(offset: Long): Unit = {
+  final def sendNext(offset: Long): Unit = {
     val bytes: ByteBuffer = ch.synchronized {
       if (ch.position != offset) ch.position(offset)
       buf.clear()
-      val chunk = math.min(buf.capacity(), size - offset).toInt
+      val chunk = math.min(buf.capacity(), _size - offset).toInt
       buf.limit(chunk)
       ch.read(buf)
       buf.flip()
       buf
     }
-    reply(Network.OscUpdateSet(uid = uid, offset = offset, bytes = bytes))
+    sendData(offset = offset, bytes = bytes)
   }
 
   def dispose(): Unit = {

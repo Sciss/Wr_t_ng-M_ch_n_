@@ -14,6 +14,16 @@
 package de.sciss.wrtng
 package control
 
+import java.net.InetSocketAddress
+
 final case class Config(
-                         dumpOSC: Boolean = false
+                         dumpOSC: Boolean = false,
+                         ownSocket          : Option[InetSocketAddress] = None,
+                         dot                : Int           = -1,
+                         log                : Boolean       = false,
                        )
+  extends ConfigLike {
+
+  def isLaptop            = true
+  def disableEnergySaving = false
+}

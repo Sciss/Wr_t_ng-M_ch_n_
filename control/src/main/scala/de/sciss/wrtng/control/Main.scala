@@ -32,7 +32,7 @@ object Main extends MainLike {
   }
 
   def run(host: String, config: Config): Unit = {
-    val c = OSCClient(config, host)
+    val c = OSCClient(config, host).init()
     new MainFrame(c)
   }
 }

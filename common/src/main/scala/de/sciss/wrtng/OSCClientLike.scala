@@ -38,7 +38,7 @@ abstract class OSCClientLike {
 
   // ---- impl ----
 
-  private[this] var updater = Option.empty[UpdateTarget]
+  private[this] var updater = Option.empty[UpdateDebTarget]
 
   final val timer = new java.util.Timer("osc-timer")
 
@@ -93,7 +93,7 @@ abstract class OSCClientLike {
         }
 
       case Network.OscUpdateInit(uid, size) =>
-        val u = new UpdateTarget(uid, this, sender, size)
+        val u = new UpdateDebTarget(uid, this, sender, size)
         updater.foreach(_.dispose())
         updater = Some(u)
         u.begin()

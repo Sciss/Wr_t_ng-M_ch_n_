@@ -78,6 +78,11 @@ object Main extends MainLike {
           }
         }
         .action { (v, c) => c.copy(offline = Some(v)) }
+
+      opt[File] ('r', "rec-dir")
+        .text (s"Directory for sounds recorded by gqrx (default: ${default.gqrxRecDir})")
+        .validate { v => if (v.isDirectory) success else failure(s"Not a directory: $v") }
+        .action { (v, c) => c.copy(gqrxRecDir = v) }
     }
     p.parse(args, default).fold(sys.exit(1)) { config =>
       val localSocketAddress = Network.initConfig(config, this)
@@ -86,18 +91,20 @@ object Main extends MainLike {
   }
 
   def run(localSocketAddress: InetSocketAddress, config: Config): Unit = {
-    val c = OSCClient(config, localSocketAddress)
-    try {
-      val source = if (config.isLive) {
+    val source = try {
+      if (config.isLive) {
         Live(config)
       } else {
         Offline(config)
       }
-
-    } finally {
-      c.init()
+    } catch {
+      case NonFatal(ex) =>
+        println("Could not create source:")
+        ex.printStackTrace()
+        null
     }
-
+    val c = OSCClient(config, localSocketAddress, source)
+    c.init()
     new Heartbeat(c)
   }
 }

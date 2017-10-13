@@ -266,4 +266,83 @@ object Network {
   final val DeathPeriodSeconds: Float = HeartPeriodSeconds * 2.5f
 
   final val DeathPeriodMillis: Long = (DeathPeriodSeconds * 1000).toLong
+
+  ////////////////////
+  // piece-specific //
+  ////////////////////
+
+  /** Sent from sound to radio to initiate recording */
+  object OscRadioRecBegin {
+    private[this] val Name = "/radio-rec-begin"
+
+    def apply(uid: Int, dur: Float) =
+      osc.Message(Name, uid, dur)
+
+    def unapply(m: osc.Message): Option[(Int, Float)] = m match {
+      case osc.Message(Name, uid: Int, dur: Float) =>
+        Some((uid, dur))
+      case _ => None
+    }
+  }
+
+  /** Sent from radio to sound to signalise recording is done */
+  object OscRadioRecDone {
+    private[this] val Name = "/radio-rec-done"
+
+    def apply(uid: Int, size: Long): osc.Message = osc.Message(Name, uid, size)
+
+    def unapply(p: osc.Packet): Option[(Int, Long)] = p match {
+      case osc.Message(Name, uid: Int, size: Long) => Some((uid, size))
+      case _ => None
+    }
+  }
+
+  /** Sent from sound to radio to query next recording bit */
+  object OscRadioRecGet {
+    private[this] val Name = "/radio-rec-get"
+
+    def apply(uid: Int, offset: Long): osc.Message = osc.Message(Name, uid, offset)
+
+    def unapply(p: osc.Packet): Option[(Int, Long)] = p match {
+      case osc.Message(Name, uid: Int, offset: Long) => Some((uid, offset))
+      case _ => None
+    }
+  }
+
+  /** Sent from radio to sound to transmit next recording bit */
+  object OscRadioRecSet {
+    private[this] val Name = "/radio-rec-set"
+
+    def apply(uid: Int, offset: Long, bytes: ByteBuffer): osc.Message =
+      osc.Message(Name, uid,offset, bytes)
+
+    def unapply(p: osc.Packet): Option[(Int, Long, ByteBuffer)] = p match {
+      case osc.Message(Name, uid: Int, offset: Long, bytes: ByteBuffer) => Some((uid, offset, bytes))
+      case _ => None
+    }
+  }
+
+  object OscRadioRecError {
+    private[this] val Name = "/radio-rec-error"
+
+    def apply(uid: Int, s: String): osc.Message = osc.Message(Name, uid, s)
+
+    def unapply(p: osc.Packet): Option[(Int, String)] = p match {
+      case osc.Message(Name, uid: Int, s: String) => Some((uid, s))
+      case _ => None
+    }
+  }
+
+  /** Sent from sound to radio to signalise transmission complete, file can be discarded */
+  object OscRadioRecDispose {
+    private[this] val Name = "/radio-rec-dispose"
+
+    def apply(uid: Int): osc.Message =
+      osc.Message(Name, uid)
+
+    def unapply(p: osc.Packet): Option[Int] = p match {
+      case osc.Message(Name, uid: Int) => Some(uid)
+      case _ => None
+    }
+  }
 }

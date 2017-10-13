@@ -27,15 +27,16 @@ object OSCClient {
   final val Port = 57110
 
   def apply(config: Config, host: String): OSCClient = {
-    val c                 = UDP.Config()
-    c.codec               = Network.oscCodec
-    val localSocket       = new InetSocketAddress(host, Port)
-    c.localSocketAddress  = localSocket
-    c.bufferSize          = 32768   // only higher for sending SynthDefs
-    println(s"OSCClient local socket $localSocket")
-    val tx                = UDP.Transmitter(c)
-    val rx                = UDP.Receiver(tx.channel, c)
-    new OSCClient(config, tx, rx)
+    val localSocketAddress  = new InetSocketAddress(host, Port)
+    val c                   = UDP.Config()
+    c.codec                 = Network.oscCodec
+    val dot                 = Network.resolveDot(config, localSocketAddress)
+    c.localSocketAddress    = localSocketAddress
+    c.bufferSize            = 32768   // only higher for sending SynthDefs
+    println(s"OSCClient local socket $localSocketAddress - dot $dot")
+    val tx                  = UDP.Transmitter(c)
+    val rx                  = UDP.Receiver(tx.channel, c)
+    new OSCClient(config, dot, tx, rx)
   }
 
   sealed trait Update
@@ -44,30 +45,24 @@ object OSCClient {
   final case class Changed(status: Status) extends Update
 }
 /** Undirected pair of transmitter and receiver, sharing the same datagram channel. */
-final class OSCClient(config: Config, val tx: UDP.Transmitter.Undirected, val rx: UDP.Receiver.Undirected)
-  extends ModelImpl[OSCClient.Update] {
+final class OSCClient(val config      : Config,
+                      val dot         : Int,
+                      val transmitter : UDP.Transmitter.Undirected,
+                      val receiver    : UDP.Receiver.Undirected)
+  extends OSCClientLike with ModelImpl[OSCClient.Update] {
+
+  override def main: Main.type = Main
 
   private[this] val sync        = new AnyRef
   private[this] var _instances  = Vector.empty[Status]
 
   def instances: Vector[Status] = sync.synchronized(_instances)
 
-  /** Sends to all possible targets, including laptop itself. */
-  def ! (p: osc.Packet): Unit =
-    Network.socketSeqCtl.foreach { target =>
-      tx.send(p, target)
-    }
-
-  def dumpOSC(): Unit = {
-    tx.dump(filter = Network.oscDumpFilter)
-    rx.dump(filter = Network.oscDumpFilter)
-  }
-
   def beginUpdates(debFile: File, instances: ISeq[Status]): Unit = mapUIDToUpdaterSync.synchronized {
     val map0 = mapUIDToUpdater
     val map2 = instances.foldLeft(map0) { (mapT, status) =>
       val uid = Util.nextUniqueID()
-      val u   = new UpdateSource(uid, config, this, status, debFile)
+      val u   = new UpdateDebSource(uid, this, status, debFile)
       u.begin()
       mapT + (uid -> u)
     }
@@ -75,7 +70,7 @@ final class OSCClient(config: Config, val tx: UDP.Transmitter.Undirected, val rx
   }
 
   private[this] val mapUIDToUpdaterSync = new AnyRef
-  private[this] var mapUIDToUpdater     = Map.empty[Int, UpdateSource]
+  private[this] var mapUIDToUpdater     = Map.empty[Int, UpdateDebSource]
 
   def getDot(sender: SocketAddress): Int = sender match {
     case in: InetSocketAddress =>
@@ -109,7 +104,7 @@ final class OSCClient(config: Config, val tx: UDP.Transmitter.Undirected, val rx
         mapUIDToUpdater.get(uid).fold(s"$base - no updater found") { u =>
           mapUIDToUpdater -= uid
           u.dispose()
-          s"$base - instance ${u.instance.dot} - file ${u.debFile}"
+          s"$base - instance ${u.instance.dot} - file ${u.file}"
         }
       }
       println(msg)
@@ -158,9 +153,4 @@ final class OSCClient(config: Config, val tx: UDP.Transmitter.Undirected, val rx
     // N.B.: Do _not_ reply, because we may create an infinite growing loop
     // tx.send(osc.Message("/error", "unknown packet", p), sender)
   }
-
-  rx.action = oscReceived
-  if (config.dumpOSC) dumpOSC()
-  tx.connect()
-  rx.connect()
 }

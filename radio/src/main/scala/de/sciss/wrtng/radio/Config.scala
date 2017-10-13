@@ -16,7 +16,7 @@ package radio
 
 import java.net.InetSocketAddress
 
-import de.sciss.file.File
+import de.sciss.file._
 
 /**
   * @param dumpOSC              if `true`, print incoming and outgoing OSC packets
@@ -35,6 +35,7 @@ final case class Config(
                          log                : Boolean       = false,
                          gqrxConfig         : String        = "wrtng.conf",
                          gqrxTCPPort        : Int           = 7356,
+                         gqrxRecDir         : File          = userHome / "Music",
                          offline            : Option[File]  = None
                        )
   extends ConfigLike {

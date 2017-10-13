@@ -199,13 +199,13 @@ class MainFrame(c: OSCClient) {
 
   private[this] val ggReboot = Button("Reboot") {
     selection.foreach { instance =>
-      c.tx.send(Network.OscReboot, instance.socketAddress)
+      c.transmitter.send(Network.OscReboot, instance.socketAddress)
     }
   }
 
   private[this] val ggShutdown = Button("Shutdown") {
     selection.foreach { instance =>
-      c.tx.send(Network.OscShutdown, instance.socketAddress)
+      c.transmitter.send(Network.OscShutdown, instance.socketAddress)
     }
   }
 
@@ -217,7 +217,7 @@ class MainFrame(c: OSCClient) {
 
   private[this] val ggServerInfo = Button("Server Info") {
     selection.foreach { instance =>
-      c.tx.send(osc.Message("/server-info"), instance.socketAddress)
+      c.transmitter.send(osc.Message("/server-info"), instance.socketAddress)
     }
   }
 
@@ -237,7 +237,7 @@ class MainFrame(c: OSCClient) {
         shellString = cmdS
         val cmd = cmdS.split(" ")
         sel.foreach { instance =>
-          c.tx.send(Network.OscShell(cmd), instance.socketAddress)
+          c.transmitter.send(Network.OscShell(cmd), instance.socketAddress)
         }
       }
     }
@@ -263,7 +263,7 @@ class MainFrame(c: OSCClient) {
 
   private[this] val ggBees = ToggleButton("Bees", init = true) { onOff =>
     selection.foreach { instance =>
-      c.tx.send(osc.Message("/bees", onOff), instance.socketAddress)
+      c.transmitter.send(osc.Message("/bees", onOff), instance.socketAddress)
     }
   }
 
@@ -311,7 +311,7 @@ class MainFrame(c: OSCClient) {
     lastChan = ch
     selection.foreach { instance =>
       val tpe = if (ggSoundPing.selected) 0 else if (ggSoundNoise.selected) 1 else -1
-      c.tx.send(osc.Message("/test-channel", ch, tpe), instance.socketAddress)
+      c.transmitter.send(osc.Message("/test-channel", ch, tpe), instance.socketAddress)
 
       if (ggRepeat.selected) {
         timRepeat.restart()

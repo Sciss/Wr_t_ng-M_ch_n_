@@ -22,6 +22,7 @@ import de.sciss.osc
 import de.sciss.osc.UDP
 
 import scala.collection.immutable.{Seq => ISeq}
+import scala.concurrent.stm.atomic
 
 object OSCClient {
   final val Port = 57110
@@ -61,7 +62,7 @@ final class OSCClient(val config      : Config,
   def beginUpdates(debFile: File, instances: ISeq[Status]): Unit = mapUIDToUpdaterSync.synchronized {
     val map0 = mapUIDToUpdater
     val map2 = instances.foldLeft(map0) { (mapT, status) =>
-      val uid = Util.nextUniqueID()
+      val uid = atomic { implicit tx => mkTxnId() }
       val u   = new UpdateDebSource(uid, this, status, debFile)
       u.begin()
       mapT + (uid -> u)
@@ -70,7 +71,7 @@ final class OSCClient(val config      : Config,
   }
 
   private[this] val mapUIDToUpdaterSync = new AnyRef
-  private[this] var mapUIDToUpdater     = Map.empty[Int, UpdateDebSource]
+  private[this] var mapUIDToUpdater     = Map.empty[Long, UpdateDebSource]
 
   def getDot(sender: SocketAddress): Int = sender match {
     case in: InetSocketAddress =>

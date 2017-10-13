@@ -8,7 +8,7 @@ import de.sciss.file.File
 
 import scala.concurrent.stm.{InTxn, Txn}
 
-final class UpdateRadioSource(val uid: Int, c: OSCClient, target: SocketAddress, file: File)
+final class UpdateRadioSource(val uid: Long, c: OSCClient, target: SocketAddress, file: File)
   extends UpdateSource(c, target, file) {
 
   @volatile

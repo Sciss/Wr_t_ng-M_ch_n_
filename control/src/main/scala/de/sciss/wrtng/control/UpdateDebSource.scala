@@ -18,7 +18,7 @@ import java.nio.ByteBuffer
 
 import de.sciss.file._
 
-final class UpdateDebSource(val uid: Int, c: OSCClient, val instance: Status, file: File)
+final class UpdateDebSource(val uid: Long, c: OSCClient, val instance: Status, file: File)
   extends UpdateSource(c, Network.dotToSocketMap(instance.dot), file) {
 
   def begin(): Unit =

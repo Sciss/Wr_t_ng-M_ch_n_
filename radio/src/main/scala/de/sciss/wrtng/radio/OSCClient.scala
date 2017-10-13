@@ -49,9 +49,9 @@ final class OSCClient(override val config: Config, val dot: Int,
 
   override def main: Main.type = Main
 
-  private[this] val mapUIDToRadioRecUpdate = TMap.empty[Int, UpdateRadioSource]
+  private[this] val mapUIDToRadioRecUpdate = TMap.empty[Long, UpdateRadioSource]
 
-  private def disposeRadioUpdate(uid: Int)(implicit tx: InTxn): Unit = {
+  private def disposeRadioUpdate(uid: Long)(implicit tx: InTxn): Unit = {
     val opt = mapUIDToRadioRecUpdate.get(uid)
     opt.foreach(_.disposeTxn())
   }

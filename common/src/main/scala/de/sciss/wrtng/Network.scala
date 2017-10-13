@@ -57,6 +57,7 @@ object Network {
   }
 
   final val soundSocketSeq  : Vec[SocketAddress]   = soundDotSeq .map(mkSocket)
+  final val radioSocket     :     SocketAddress    = mkSocket(radioDot)
   final val socketSeqCtl    : Vec[SocketAddress]   = dotSeqCtl   .map(mkSocket)
 
   final val dotToSocketMap  : Map[Int, SocketAddress] = (dotSeqCtl zip socketSeqCtl).toMap
@@ -174,10 +175,10 @@ object Network {
   object OscUpdateInit {
     private[this] val Name = "/update-init"
 
-    def apply(uid: Int, size: Long): osc.Message = osc.Message(Name, uid, size)
+    def apply(uid: Long, size: Long): osc.Message = osc.Message(Name, uid, size)
 
-    def unapply(p: osc.Packet): Option[(Int, Long)] = p match {
-      case osc.Message(Name, uid: Int, size: Long) => Some((uid, size))
+    def unapply(p: osc.Packet): Option[(Long, Long)] = p match {
+      case osc.Message(Name, uid: Long, size: Long) => Some((uid, size))
       case _ => None
     }
   }
@@ -185,10 +186,10 @@ object Network {
   object OscUpdateGet {
     private[this] val Name = "/update-get"
 
-    def apply(uid: Int, offset: Long): osc.Message = osc.Message(Name, uid, offset)
+    def apply(uid: Long, offset: Long): osc.Message = osc.Message(Name, uid, offset)
 
-    def unapply(p: osc.Packet): Option[(Int, Long)] = p match {
-      case osc.Message(Name, uid: Int, offset: Long) => Some((uid, offset))
+    def unapply(p: osc.Packet): Option[(Long, Long)] = p match {
+      case osc.Message(Name, uid: Long, offset: Long) => Some((uid, offset))
       case _ => None
     }
   }
@@ -196,11 +197,11 @@ object Network {
   object OscUpdateSet {
     private[this] val Name = "/update-set"
 
-    def apply(uid: Int, offset: Long, bytes: ByteBuffer): osc.Message =
+    def apply(uid: Long, offset: Long, bytes: ByteBuffer): osc.Message =
       osc.Message(Name, uid,offset, bytes)
 
-    def unapply(p: osc.Packet): Option[(Int, Long, ByteBuffer)] = p match {
-      case osc.Message(Name, uid: Int, offset: Long, bytes: ByteBuffer) => Some((uid, offset, bytes))
+    def unapply(p: osc.Packet): Option[(Long, Long, ByteBuffer)] = p match {
+      case osc.Message(Name, uid: Long, offset: Long, bytes: ByteBuffer) => Some((uid, offset, bytes))
       case _ => None
     }
   }
@@ -209,10 +210,10 @@ object Network {
     private[this] val Name = "/error"
     private[this] val Tpe  = "update"
 
-    def apply(uid: Int, s: String): osc.Message = osc.Message(Name, Tpe, uid, s)
+    def apply(uid: Long, s: String): osc.Message = osc.Message(Name, Tpe, uid, s)
 
-    def unapply(p: osc.Packet): Option[(Int, String)] = p match {
-      case osc.Message(Name, Tpe, uid: Int, s: String) => Some((uid, s))
+    def unapply(p: osc.Packet): Option[(Long, String)] = p match {
+      case osc.Message(Name, Tpe, uid: Long, s: String) => Some((uid, s))
       case _ => None
     }
   }
@@ -220,11 +221,11 @@ object Network {
   object OscUpdateSuccess {
     private[this] val Name = "/update-done"
 
-    def apply(uid: Int): osc.Message =
+    def apply(uid: Long): osc.Message =
       osc.Message(Name, uid)
 
-    def unapply(p: osc.Packet): Option[Int] = p match {
-      case osc.Message(Name, uid: Int) => Some(uid)
+    def unapply(p: osc.Packet): Option[Long] = p match {
+      case osc.Message(Name, uid: Long) => Some(uid)
       case _ => None
     }
   }
@@ -275,11 +276,11 @@ object Network {
   object OscRadioRecBegin {
     private[this] val Name = "/radio-rec-begin"
 
-    def apply(uid: Int, dur: Float) =
+    def apply(uid: Long, dur: Float) =
       osc.Message(Name, uid, dur)
 
-    def unapply(m: osc.Message): Option[(Int, Float)] = m match {
-      case osc.Message(Name, uid: Int, dur: Float) =>
+    def unapply(m: osc.Message): Option[(Long, Float)] = m match {
+      case osc.Message(Name, uid: Long, dur: Float) =>
         Some((uid, dur))
       case _ => None
     }
@@ -289,10 +290,10 @@ object Network {
   object OscRadioRecDone {
     private[this] val Name = "/radio-rec-done"
 
-    def apply(uid: Int, size: Long): osc.Message = osc.Message(Name, uid, size)
+    def apply(uid: Long, size: Long): osc.Message = osc.Message(Name, uid, size)
 
-    def unapply(p: osc.Packet): Option[(Int, Long)] = p match {
-      case osc.Message(Name, uid: Int, size: Long) => Some((uid, size))
+    def unapply(p: osc.Packet): Option[(Long, Long)] = p match {
+      case osc.Message(Name, uid: Long, size: Long) => Some((uid, size))
       case _ => None
     }
   }
@@ -301,10 +302,10 @@ object Network {
   object OscRadioRecGet {
     private[this] val Name = "/radio-rec-get"
 
-    def apply(uid: Int, offset: Long): osc.Message = osc.Message(Name, uid, offset)
+    def apply(uid: Long, offset: Long): osc.Message = osc.Message(Name, uid, offset)
 
-    def unapply(p: osc.Packet): Option[(Int, Long)] = p match {
-      case osc.Message(Name, uid: Int, offset: Long) => Some((uid, offset))
+    def unapply(p: osc.Packet): Option[(Long, Long)] = p match {
+      case osc.Message(Name, uid: Long, offset: Long) => Some((uid, offset))
       case _ => None
     }
   }
@@ -313,11 +314,11 @@ object Network {
   object OscRadioRecSet {
     private[this] val Name = "/radio-rec-set"
 
-    def apply(uid: Int, offset: Long, bytes: ByteBuffer): osc.Message =
+    def apply(uid: Long, offset: Long, bytes: ByteBuffer): osc.Message =
       osc.Message(Name, uid,offset, bytes)
 
-    def unapply(p: osc.Packet): Option[(Int, Long, ByteBuffer)] = p match {
-      case osc.Message(Name, uid: Int, offset: Long, bytes: ByteBuffer) => Some((uid, offset, bytes))
+    def unapply(p: osc.Packet): Option[(Long, Long, ByteBuffer)] = p match {
+      case osc.Message(Name, uid: Long, offset: Long, bytes: ByteBuffer) => Some((uid, offset, bytes))
       case _ => None
     }
   }
@@ -325,10 +326,10 @@ object Network {
   object OscRadioRecError {
     private[this] val Name = "/radio-rec-error"
 
-    def apply(uid: Int, s: String): osc.Message = osc.Message(Name, uid, s)
+    def apply(uid: Long, s: String): osc.Message = osc.Message(Name, uid, s)
 
-    def unapply(p: osc.Packet): Option[(Int, String)] = p match {
-      case osc.Message(Name, uid: Int, s: String) => Some((uid, s))
+    def unapply(p: osc.Packet): Option[(Long, String)] = p match {
+      case osc.Message(Name, uid: Long, s: String) => Some((uid, s))
       case _ => None
     }
   }
@@ -337,11 +338,11 @@ object Network {
   object OscRadioRecDispose {
     private[this] val Name = "/radio-rec-dispose"
 
-    def apply(uid: Int): osc.Message =
+    def apply(uid: Long): osc.Message =
       osc.Message(Name, uid)
 
-    def unapply(p: osc.Packet): Option[Int] = p match {
-      case osc.Message(Name, uid: Int) => Some(uid)
+    def unapply(p: osc.Packet): Option[Long] = p match {
+      case osc.Message(Name, uid: Long) => Some(uid)
       case _ => None
     }
   }

@@ -18,8 +18,8 @@ import java.net.SocketAddress
 import de.sciss.equal.Implicits._
 import de.sciss.file._
 
-final class UpdateDebTarget(val uid: Int, protected val c: OSCClientLike, val sender: SocketAddress,
-                            protected val size: Long)
+final class UpdateDebTarget(val uid: Long, val c: OSCClientLike, val sender: SocketAddress,
+                            val size: Long)
   extends UpdateTarget(".deb") {
 
   protected def queryNext(): Unit =
@@ -30,7 +30,6 @@ final class UpdateDebTarget(val uid: Int, protected val c: OSCClientLike, val se
     val resInfo = Seq("dpkg", "--info", f.path).!
     if (resInfo === 0) {
       val resInstall = sudo("dpkg", "--install", f.path)
-      dispose()
       val m = if (resInstall === 0) {
         Network.OscUpdateSuccess(uid)
       } else {

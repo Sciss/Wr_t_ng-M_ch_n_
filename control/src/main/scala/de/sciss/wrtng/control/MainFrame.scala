@@ -199,25 +199,25 @@ class MainFrame(c: OSCClient) {
 
   private[this] val ggReboot = Button("Reboot") {
     selection.foreach { instance =>
-      c.transmitter.send(Network.OscReboot, instance.socketAddress)
+      c.sendNow(Network.OscReboot, instance.socketAddress)
     }
   }
 
   private[this] val ggShutdown = Button("Shutdown") {
     selection.foreach { instance =>
-      c.transmitter.send(Network.OscShutdown, instance.socketAddress)
+      c.sendNow(Network.OscShutdown, instance.socketAddress)
     }
   }
 
-//  private[this] val ggTestPins = Button("Test Pins") {
-//    selection.foreach { instance =>
-//      c.tx.send(osc.Message("/test-pin-mode"), instance.socketAddress)
-//    }
-//  }
+  private[this] val ggTestRec = Button("Test Rec") {
+    selection.foreach { instance =>
+      c.sendNow(osc.Message("/test_rec", Util.nextUniqueID(): Int, 4f), instance.socketAddress)
+    }
+  }
 
   private[this] val ggServerInfo = Button("Server Info") {
     selection.foreach { instance =>
-      c.transmitter.send(osc.Message("/server-info"), instance.socketAddress)
+      c.sendNow(osc.Message("/server-info"), instance.socketAddress)
     }
   }
 
@@ -237,7 +237,7 @@ class MainFrame(c: OSCClient) {
         shellString = cmdS
         val cmd = cmdS.split(" ")
         sel.foreach { instance =>
-          c.transmitter.send(Network.OscShell(cmd), instance.socketAddress)
+          c.sendNow(Network.OscShell(cmd), instance.socketAddress)
         }
       }
     }
@@ -263,7 +263,7 @@ class MainFrame(c: OSCClient) {
 
   private[this] val ggBees = ToggleButton("Bees", init = true) { onOff =>
     selection.foreach { instance =>
-      c.transmitter.send(osc.Message("/bees", onOff), instance.socketAddress)
+      c.sendNow(osc.Message("/bees", onOff), instance.socketAddress)
     }
   }
 
@@ -297,7 +297,7 @@ class MainFrame(c: OSCClient) {
   })
   timRepeat.setRepeats(false)
 
-  private[this] val pButtons1 = new FlowPanel(ggRefresh, ggUpdate, ggReboot, ggShutdown, /* ggTestPins, */
+  private[this] val pButtons1 = new FlowPanel(ggRefresh, ggUpdate, ggReboot, ggShutdown, ggTestRec,
     ggShell, ggServerInfo /* ggTestPath */)
   private[this] val pButtons2 = new FlowPanel(
     ggBees, new Label("Sound:"), ggSoundOff, ggSoundPing, ggSoundNoise, ggRepeat)
@@ -311,7 +311,7 @@ class MainFrame(c: OSCClient) {
     lastChan = ch
     selection.foreach { instance =>
       val tpe = if (ggSoundPing.selected) 0 else if (ggSoundNoise.selected) 1 else -1
-      c.transmitter.send(osc.Message("/test-channel", ch, tpe), instance.socketAddress)
+      c.sendNow(osc.Message("/test-channel", ch, tpe), instance.socketAddress)
 
       if (ggRepeat.selected) {
         timRepeat.restart()

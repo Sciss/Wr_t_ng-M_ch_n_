@@ -27,6 +27,7 @@ final case class Config(
                          qjPreset            : String        = "Goobay",
                          qjPatchBay          : File          = userHome/"Documents"/"jack-defaults.xml",
                          ownSocket           : Option[InetSocketAddress] = None,
+                         radioSocket         : Option[InetSocketAddress] = None,
                          dot                 : Int           = -1,
                          log                 : Boolean       = false
 //                         keypad              : Boolean       = false

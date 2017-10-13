@@ -24,18 +24,22 @@ import de.sciss.osc
 abstract class UpdateTarget(suffix: String) {
   // ---- abstract ----
 
-  protected def uid   : Int
-  protected def c     : OSCClientLike
-  protected def sender: SocketAddress
-  protected def size  : Long
+  def uid   : Long
+  def c     : OSCClientLike
+  def sender: SocketAddress
+  def size  : Long
 
   protected def queryNext(): Unit
   protected def transferCompleted(f: File): Unit
 
   // ---- impl ----
 
+  protected def createFile(): File = File.createTemp(suffix = suffix)
+
+  protected val deleteFileOnDisposal: Boolean = true
+
   private[this] var _offset = 0L
-  private[this] val f       = File.createTemp(suffix = suffix)
+  private[this] val f       = createFile()
   private[this] val raf     = new RandomAccessFile(f, "rw")
   private[this] val ch      = raf.getChannel
 
@@ -58,7 +62,14 @@ abstract class UpdateTarget(suffix: String) {
       ch.write(bytes)
       _offset += plus
       if (_offset < size) queryNext()
-      else transferCompleted(f)
+      else {
+        try {
+          ch.close()
+          transferCompleted(f)
+        } finally {
+          dispose()
+        }
+      }
     }
   }
 
@@ -73,6 +84,6 @@ abstract class UpdateTarget(suffix: String) {
 
   def dispose(): Unit = {
     ch.close()
-    f.delete()
+    if (deleteFileOnDisposal) f.delete()
   }
 }

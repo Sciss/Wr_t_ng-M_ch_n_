@@ -70,6 +70,16 @@ object Main extends MainLike {
           c.copy(ownSocket = Some(addr))
         }
 
+      opt[String] ("radio-socket")
+        .text (s"Override radio IP address and port; must be <host>:<port> ")
+        .validate { v =>
+          parseSocket(v).map(_ => ())
+        }
+        .action { (v, c) =>
+          val addr = parseSocket(v).right.get
+          c.copy(radioSocket = Some(addr))
+        }
+
       opt[Int] ("dot")
         .text ("Explicit 'dot' (normally the last element of the IP address). Used for transaction ids.")
         .validate { v => if (v >= -1 && v <= 255) success else failure("Must be -1, or 0 to 255") }

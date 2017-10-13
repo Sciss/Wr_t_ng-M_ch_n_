@@ -16,9 +16,12 @@ package sound
 
 import java.net.{InetSocketAddress, SocketAddress}
 
+import de.sciss.equal.Implicits._
+import de.sciss.file._
 import de.sciss.osc
 import de.sciss.osc.UDP
 
+import scala.concurrent.stm.atomic
 import scala.util.control.NonFatal
 
 object OSCClient {
@@ -31,20 +34,53 @@ object OSCClient {
     println(s"OSCClient local socket $localSocketAddress - dot $dot")
     val tx                = UDP.Transmitter(c)
     val rx                = UDP.Receiver(tx.channel, c)
-    new OSCClient(config, dot, tx, rx)
+    val radioSocket       = config.radioSocket.getOrElse(Network.radioSocket)
+    new OSCClient(config, dot, tx, rx, radioSocket = radioSocket)
   }
 
+  private val DummyDoneFun: File => Unit = _ => ()
 }
 /** Undirected pair of transmitter and receiver, sharing the same datagram channel. */
 final class OSCClient(override val config: Config, val dot: Int, val transmitter: UDP.Transmitter.Undirected,
-                      val receiver: UDP.Receiver.Undirected) extends OSCClientLike {
+                      val receiver: UDP.Receiver.Undirected,
+                      val radioSocket: SocketAddress)
+  extends OSCClientLike {
 
 //  val relay: RelayPins  = RelayPins.map(dot)
   val scene: SoundScene = new SoundScene(this)
 
   override def main: Main.type = Main
 
+  private[this] var radioUpdateUID  = -1L
+  private[this] var radioUpdateDone: File => Unit = OSCClient.DummyDoneFun
+  private[this] var radioUpdater    = Option.empty[UpdateRadioTarget]
+
   def oscReceived(p: osc.Packet, sender: SocketAddress): Unit = p match {
+    case Network.OscRadioRecSet(uid, off, bytes) =>
+      radioUpdater.fold[Unit] {
+        transmitter.send(Network.OscRadioRecError(uid, "missing /update-init"), sender)
+      } { u =>
+        if (u.uid === uid) {
+          if (u.sender != sender) {
+            transmitter.send(Network.OscRadioRecError(uid, "changed sender"), sender)
+          } else {
+            u.write(off, bytes)
+          }
+        } else {
+          transmitter.send(Network.OscRadioRecError(uid, s"no updater for uid $uid"), sender)
+        }
+      }
+
+    case Network.OscRadioRecDone(uid, size) =>
+      if (uid != radioUpdateUID) {
+        transmitter.send(Network.OscRadioRecError(uid, s"no update issued for uid $uid"), sender)
+      } else {
+        val u = new UpdateRadioTarget(uid, this, sender, size, radioUpdateDone)
+        radioUpdater.foreach(_.dispose())
+        radioUpdater = Some(u)
+        u.begin()
+      }
+
     case Network.OscSetVolume(amp) =>
       scene.setMasterVolume(amp)
 
@@ -76,6 +112,15 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
           val msg = Util.formatException(ex)
           transmitter.send(osc.Message("/fail", "test-channel", ch, msg), sender)
       }
+
+    case osc.Message("/test_rec", _: Int, dur: Float) =>
+      radioUpdateUID  = atomic { implicit tx => mkTxnId() }
+      radioUpdateDone = { f =>
+        import sys.process._
+        Seq("cp", f.path, (userHome / "Music" / "test.wav").path).!
+        transmitter.send(osc.Message("/done", "test_rec"), sender)
+      }
+      sendNow(Network.OscRadioRecBegin(uid = radioUpdateUID, dur = dur), radioSocket)
 
     case _ =>
       oscFallback(p, sender)

@@ -19,3 +19,4 @@ object Filler {
 //  val maxCaptureDur: Double = 45.0
 
 }
+trait Filler

@@ -25,6 +25,7 @@ lazy val scalaSTMVersion        = "0.8"
 lazy val scoptVersion           = "3.7.0"
 lazy val soundProcessesVersion  = "3.14.1"
 lazy val swingPlusVersion       = "0.2.4"
+lazy val akkaVersion            = "2.4.20" // N.B. should match with FScape's
 
 lazy val loggingEnabled = true
 
@@ -101,7 +102,8 @@ lazy val radio = Project(id = radioNameL, base = file("radio"))
     buildInfoPackage := "de.sciss.wrtng.radio",
     mainClass in Compile := Some("de.sciss.wrtng.radio.Main"),
     libraryDependencies ++= Seq(
-      "de.sciss" %% "scalaaudiofile" % audioFileVersion
+      "de.sciss"          %% "scalaaudiofile" % audioFileVersion,
+      "com.typesafe.akka" %% "akka-actor"     % akkaVersion
     )
   )
   .settings(radioDebianSettings)

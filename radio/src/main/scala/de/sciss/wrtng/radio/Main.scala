@@ -87,7 +87,16 @@ object Main extends MainLike {
 
   def run(localSocketAddress: InetSocketAddress, config: Config): Unit = {
     val c = OSCClient(config, localSocketAddress)
-    c.init()
+    try {
+      val source = if (config.isLive) {
+        Live(config)
+      } else {
+        Offline(config)
+      }
+
+    } finally {
+      c.init()
+    }
 
     new Heartbeat(c)
   }

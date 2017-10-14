@@ -15,8 +15,11 @@ package de.sciss.wrtng
 
 import de.sciss.fscape.Graph
 import de.sciss.fscape.stream.Control
+import de.sciss.lucre.confluent.TxnRandom
+import de.sciss.span.Span
 
 import scala.concurrent.duration.Duration
+import scala.concurrent.stm.InTxn
 import scala.concurrent.{Await, ExecutionContext}
 import scala.util.Try
 
@@ -26,6 +29,59 @@ package object sound {
   implicit val executionContext: ExecutionContext = ExecutionContext.global
 
   final val SR: Double = 48000.0
+
+  def secondsToFrames(secs: Double): Long = (secs * SR + 0.5).toLong
+
+  def framesToSeconds(frames: Long): Double = frames / SR
+
+  def formatSeconds(seconds: Double): String = {
+    val millisR = (seconds * 1000).toInt
+    val sb      = new StringBuilder(10)
+    val secsR   = millisR / 1000
+    val millis  = millisR % 1000
+    val mins    = secsR / 60
+    val secs    = secsR % 60
+    if (mins > 0) {
+      sb.append(mins)
+      sb.append(':')
+      if (secs < 10) {
+        sb.append('0')
+      }
+    }
+    sb.append(secs)
+    sb.append('.')
+    if (millis < 10) {
+      sb.append('0')
+    }
+    if (millis < 100) {
+      sb.append('0')
+    }
+    sb.append(millis)
+    sb.append('s')
+    sb.toString()
+  }
+
+  def formatSpan(span: Span): String = {
+    val sb = new StringBuilder(24)
+    sb.append('[')
+    sb.append(formatSeconds(framesToSeconds(span.start)))
+    sb.append('-')
+    sb.append(formatSeconds(framesToSeconds(span.stop)))
+    sb.append(']')
+    sb.toString()
+  }
+
+  def formatPercent(d: Double): String = {
+    val pm = (d * 1000).toInt
+    val post = pm % 10
+    val pre = pm / 10
+    val sb = new StringBuilder(8)
+    sb.append(pre)
+    sb.append('.')
+    sb.append(post)
+    sb.append('%')
+    sb.toString()
+  }
 
   implicit final class GraphOps(private val g: Graph) extends AnyVal {
     def renderAndWait(): Try[Unit] = {
@@ -43,4 +99,6 @@ package object sound {
       c.status.value.get
     }
   }
+
+  type TxRnd = TxnRandom[InTxn]
 }

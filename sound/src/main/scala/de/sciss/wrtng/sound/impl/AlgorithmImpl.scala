@@ -19,15 +19,16 @@ import akka.actor.ActorSystem
 import de.sciss.file._
 import de.sciss.fscape.Graph
 import de.sciss.fscape.stream.Control
+import de.sciss.lucre.confluent.TxnRandom
+import de.sciss.span.Span
 import de.sciss.synth.io.AudioFileType.AIFF
 import de.sciss.synth.io.SampleFormat.Int16
 import de.sciss.synth.io.{AudioFile, AudioFileSpec}
+import de.sciss.wrtng.sound.Main.log
 
-import scala.concurrent.{Future, Promise}
 import scala.concurrent.stm.{InTxn, Ref, Txn, atomic}
+import scala.concurrent.{Future, Promise}
 import scala.util.control.NonFatal
-
-import Main.log
 
 final class AlgorithmImpl(client: OSCClient) extends Algorithm {
   import client.config
@@ -40,21 +41,28 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
 
   def iterate()(implicit tx: InTxn): Future[Unit] = {
     log("iterate()")
-    val futFill = dbFill()
-    futFill.map(_ => ())
+
+    for {
+      _     <- dbFill()
+      instr <- atomic { implicit tx => phSelectOverwrite  ()            }
+      mat   <- atomic { implicit tx => dbFindMatch        (instr)       }
+      _     <- atomic { implicit tx => phPerformOverwrite (instr, mat)  }
+    } yield ()
   }
+
+  private[this] implicit val random: TxRnd = TxnRandom.plain()
 
   ////////////////
   //  Database  //
   ////////////////
 
-  private[this] val dbDir     = config.baseDir / "database"
-  private[this] val dbPattern = "db%06d.aif"
-  private[this] val afSpec    = AudioFileSpec(AIFF, Int16, numChannels = 1, sampleRate = SR)
+  private[this] val dbDir         = config.baseDir / "database"
+  private[this] val dbPattern     = "db%06d.aif"
+  private[this] val afSpec        = AudioFileSpec(AIFF, Int16, numChannels = 1, sampleRate = SR)
 
-  private[this] val dbCount   = Ref.make[Int ]()
-  private[this] val dbLen     = Ref.make[Long]()
-  private[this] val dbFile    = Ref.make[File]()
+  private[this] val dbCount       = Ref.make[Int ]()
+  private[this] val dbLen         = Ref.make[Long]()
+  private[this] val dbFile        = Ref.make[File]()
 
   private[this] val dbTargetLen   = (SR * 180).toLong
   private[this] val maxCaptureLen = (SR *  20).toLong
@@ -162,6 +170,12 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
     p.future
   }
 
+  def dbFindMatch(instr: OverwriteInstruction)(implicit tx: InTxn): Future[Span] = {
+    val len0 = dbLen()
+    // XXX TODO
+    Future.successful(Span(0L, math.min(len0, instr.newLength)))
+  }
+
   ////////////////
   //  Ph(r)ase  //
   ////////////////
@@ -194,5 +208,57 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
       val spec  = AudioFile.readSpec(ph0)
       phLen  () = spec.numFrames
     }
+  }
+
+  private[this] val stretchStable   : Motion = Motion.linexp(Motion.walk(0, 1, 0.1), 0, 1, 1.0 / 1.1, 1.1)
+  private[this] val stretchGrow     : Motion = Motion.walk(1.2, 2.0, 0.2)
+  private[this] val stretchShrink   : Motion = Motion.walk(0.6, 0.95, 0.2)
+
+  private[this] val stretchMotion = Ref(stretchStable)
+
+  private[this] val minPhaseDur =   3.0
+  private[this] val maxPhaseDur =  30.0 // 150.0
+  private[this] val minPhaseLen = (SR * minPhaseDur).toLong
+  private[this] val maxPhaseLen = (SR * maxPhaseDur).toLong
+
+  def phSelectOverwrite()(implicit tx: InTxn): Future[OverwriteInstruction] = {
+    val ph0   = phFile()
+    val len0  = phLen ()
+
+    val minStabDur   : Double =  10.0
+    val stableDurProb: Double =   3.0 / 100
+
+    val pDur = framesToSeconds(len0)
+    val mStretch = if (pDur <= minPhaseDur) {
+      stretchMotion.set(stretchGrow)
+      // if (verbose) println(s"---pDur = ${formatSeconds(pDur)} -> grow")
+      stretchGrow
+    } else if (pDur >= maxPhaseDur) {
+      stretchMotion.set(stretchShrink)
+      // if (verbose) println(s"---pDur = ${formatSeconds(pDur)} -> shrink")
+      stretchShrink
+    } else if (pDur > minStabDur && random.nextDouble() < stableDurProb) {
+      stretchMotion.set(stretchStable)
+      // if (verbose) println(s"---pDur = ${formatSeconds(pDur)} -> stable")
+      stretchStable
+    } else {
+      stretchMotion()
+    }
+
+    val fStretch = mStretch.step()
+
+    val fut = if (len0 > minPhaseLen) SelectOverwrite(ph0, ctlCfg) else Future.successful(Span(0L, 0L))
+    fut.map { span =>
+      val newLength0  = (span.length * fStretch + 0.5).toLong
+      val newDiff0    = newLength0 - span.length
+      val len1        = math.max(minPhaseLen, math.min(maxPhaseLen, len0 + newDiff0))
+      val newDiff1    = len1 - len0
+      val newLength   = newDiff1 + span.length
+      OverwriteInstruction(span, newLength = newLength)
+    }
+  }
+
+  def phPerformOverwrite(instr: OverwriteInstruction, dbSpan: Span)(implicit tx: InTxn): Future[Unit] = {
+    ???
   }
 }

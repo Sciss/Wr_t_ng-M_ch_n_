@@ -15,11 +15,15 @@ package de.sciss.wrtng
 package sound
 
 import de.sciss.file._
+import de.sciss.fscape.stream.Control
 import de.sciss.fscape.{GE, Graph}
+import de.sciss.span.Span
 import de.sciss.synth.UGenSource.Vec
 import de.sciss.synth.io.AudioFile
 
-import scala.concurrent.Promise
+import scala.concurrent.stm.{InTxn, Txn}
+import scala.concurrent.{Future, Promise}
+import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
 object SelectOverwrite {
@@ -92,6 +96,33 @@ object SelectOverwrite {
     val stopF       = valuesGE.dropWhile(valuesGE <= top).take(1) * stepSize
 
     SelectPart(startFrame = startF, stopFrame = stopF)
+  }
+
+  def apply(fileIn: File, ctlCfg: Control.Config)(implicit tx: InTxn): Future[Span] = {
+    val pRes  = Promise[Span]()
+    val pSpan = Promise[Vec[Long]]()
+
+    val g = Graph {
+      val sel = selectPart(fileIn)
+      import de.sciss.fscape.graph._
+      FutureLong(sel.startFrame ++ sel.stopFrame, pSpan)
+    }
+
+    Txn.afterCommit { _ =>
+      try {
+        val ctl = Control(ctlCfg)
+        ctl.run(g)
+        val fut = ctl.status.map { _ =>
+          val Vec(start, stop) = pSpan.future.value.get.get
+          Span(start, stop)
+        }
+        pRes.completeWith(fut)
+      } catch {
+        case NonFatal(ex) => pRes.failure(ex)
+      }
+    }
+
+    pRes.future
   }
 
   def run(fileIn: File /* , fileOut: File */): Unit = {

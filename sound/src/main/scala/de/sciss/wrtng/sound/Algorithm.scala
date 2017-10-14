@@ -14,14 +14,25 @@
 package de.sciss.wrtng
 package sound
 
+import de.sciss.lucre.synth.Txn
+
 import scala.concurrent.Future
 import scala.concurrent.stm.InTxn
 
 object Algorithm {
-  def apply(c: OSCClient): Algorithm = new impl.AlgorithmImpl(c)
+  def apply(c: OSCClient, channel: Int): Algorithm = {
+    require(channel == 0 || channel == 1)
+    new impl.AlgorithmImpl(c, channel = channel)
+  }
 }
 trait Algorithm {
   def init(): this.type
 
+  def client: OSCClient
+
+  def channel: Int
+
   def iterate()(implicit tx: InTxn): Future[Unit]
+
+  def playAndIterate()(implicit tx: Txn): Future[Unit]
 }

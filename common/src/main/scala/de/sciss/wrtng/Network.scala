@@ -349,5 +349,18 @@ object Network {
 
   //////
 
-  final val OscIterate : osc.Message = osc.Message("/iterate")
+  // final val OscIterate : osc.Message = osc.Message("/iterate")
+
+  object OscIterate {
+    private[this] val _Name = "/iterate"
+
+    def Name: String = _Name
+
+    def apply(ch: Int): osc.Message = osc.Message(_Name, ch)
+
+    def unapply(p: osc.Packet): Option[Int] = p match {
+      case osc.Message(`_Name`, ch: Int) => Some(ch)
+      case _ => None
+    }
+  }
 }

@@ -18,11 +18,12 @@ import java.net.{InetSocketAddress, SocketAddress}
 
 import de.sciss.equal.Implicits._
 import de.sciss.file._
+import de.sciss.lucre.synth.Txn
 import de.sciss.osc
 import de.sciss.osc.UDP
 import de.sciss.synth.io.AudioFile
 
-import scala.concurrent.stm.{InTxn, Ref, Txn, atomic}
+import scala.concurrent.stm.{InTxn, Ref, atomic, Txn => STxn}
 import scala.concurrent.{Future, Promise}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
@@ -50,8 +51,11 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
   extends OSCClientLike {
 
 //  val relay: RelayPins  = RelayPins.map(dot)
-  val scene: SoundScene = new SoundScene(this)
-  val algorithm: Algorithm = Algorithm(this)
+  val scene     : SoundScene  = new SoundScene(this)
+  val algorithm1: Algorithm   = Algorithm(this, channel = 0)
+  val algorithm2: Algorithm   = Algorithm(this, channel = 1)
+
+  private[this] val algorithms = Array(algorithm1, algorithm2)
 
   override def main: Main.type = Main
 
@@ -87,20 +91,22 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
         }
       }
 
-    case Network.OscIterate =>
+    case Network.OscIterate(ch) =>
       try {
-        val fut = atomic { implicit tx =>
-          algorithm.iterate()
+        val algorithm = algorithms(ch)
+        val fut = atomic { itx =>
+          implicit val tx: Txn = Txn.wrap(itx)
+          algorithm.playAndIterate()
         }
         fut.onComplete {
-          case Success(_)   => sendNow(osc.Message("/done" , Network.OscIterate.name), sender)
-          case Failure(ex)  => sendNow(osc.Message("/error", Network.OscIterate.name, exceptionToOSC(ex)), sender)
+          case Success(_)   => sendNow(osc.Message("/done" , Network.OscIterate.Name), sender)
+          case Failure(ex)  => sendNow(osc.Message("/error", Network.OscIterate.Name, exceptionToOSC(ex)), sender)
         }
       } catch {
         case NonFatal(ex) =>
           println("The fuck!?")
           ex.printStackTrace()
-          sendNow(osc.Message("/error", Network.OscIterate.name, exceptionToOSC(ex)), sender)
+          sendNow(osc.Message("/error", Network.OscIterate.Name, exceptionToOSC(ex)), sender)
       }
 
     case Network.OscSetVolume(amp) =>
@@ -159,7 +165,7 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
           }
         })
         radioUpdateTgt.swap(Some(u)).foreach(_.dispose())
-        Txn.afterCommit(_ => u.begin())
+        STxn.afterCommit(_ => u.begin())
 
       case Failure(ex) => p.failure(ex)
     }}
@@ -169,7 +175,8 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
 
   override def init(): this.type = {
     super     .init()
-    algorithm .init()
+    algorithm1.init()
+    algorithm2.init()
     scene     .run()
     this
   }

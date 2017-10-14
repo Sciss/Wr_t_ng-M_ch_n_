@@ -212,17 +212,16 @@ final class SoundScene(c: OSCClient) {
 
   private[this] val beesQuiet = Array.fill(12)(Span(0L, 0L))
 
-  def play(file: File, ch: Int, start: Long, stop: Long, fadeIn: Float, fadeOut: Float): Unit = {
+  /** Bumps the use count of `ref` until playing is over */
+  def play(ref: AudioFileRef, ch: Int, start: Long, stop: Long, fadeIn: Float, fadeOut: Float)
+          (implicit tx: Txn): Unit = {
 
-//    if (!config.isLaptop) {
-//      relay.selectChannel(ch)
-//    }
-
-    val bus = ch // / 6
-    serverTxn { implicit tx => s =>
+    aural.serverOption.foreach { s =>
+      ref.acquire()
+      val bus = ch // / 6
       val target  = s.defaultGroup
       target.freeAll()
-      val path    = file.path
+      val path    = ref.f.path
       val buf     = Buffer.diskIn(s)(path = path, startFrame = start, numChannels = 1)
       val dur     = math.max(0L, stop - start) / SR
       // avoid clicking
@@ -234,9 +233,8 @@ final class SoundScene(c: OSCClient) {
         dependencies = buf :: Nil)
       syn.onEndTxn { implicit tx =>
         buf.dispose()
-        //          if (synthRef().contains(syn)) synthRef() = None
+        ref.release()
       }
-      //        synthRef() = Some(syn)
     }
   }
 

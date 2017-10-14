@@ -20,6 +20,8 @@ import de.sciss.file._
 import de.sciss.fscape.Graph
 import de.sciss.fscape.stream.Control
 import de.sciss.lucre.confluent.TxnRandom
+import de.sciss.lucre.stm.TxnLike
+import de.sciss.lucre.synth.Txn
 import de.sciss.span.Span
 import de.sciss.synth.io.AudioFileType.AIFF
 import de.sciss.synth.io.SampleFormat.Int16
@@ -30,13 +32,27 @@ import scala.concurrent.Future
 import scala.concurrent.stm.{InTxn, Ref, atomic}
 import scala.math.{max, min}
 
-final class AlgorithmImpl(client: OSCClient) extends Algorithm {
+final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algorithm {
   import client.config
 
   def init(): this.type = {
     dbInit()
     phInit()
     this
+  }
+
+  def playAndIterate()(implicit tx: Txn): Future[Unit] = {
+    import TxnLike.peer
+
+    val ph0 = phFile()
+    if (ph0.numFrames > 4800) {
+      val fadeIn  = 0.1f
+      val fadeOut = 0.1f
+      val start   = 0L
+      val stop    = ph0.numFrames
+      client.scene.play(ph0, ch = channel, start = start, stop = stop, fadeIn = fadeIn, fadeOut = fadeOut)
+    }
+    iterate()
   }
 
   def iterate()(implicit tx: InTxn): Future[Unit] = {
@@ -60,7 +76,7 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
   //  Database  //
   ////////////////
 
-  private[this] val dbDir         = config.baseDir / "database"
+  private[this] val dbDir         = config.baseDir / s"database${channel + 1}"
   private[this] val dbPattern     = "db%06d.aif"
   private[this] val afSpec        = AudioFileSpec(AIFF, Int16, numChannels = 1, sampleRate = SR)
 
@@ -73,7 +89,7 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
 
   private[this] val ctlCfg: Control.Config = {
     val c = Control.Config()
-    c.actorSystem = ActorSystem("algorithm")
+    c.actorSystem = ActorSystem(s"algorithm-${channel + 1}")
     c.useAsync    = false
     c.build
   }
@@ -174,7 +190,7 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
   //  Ph(r)ase  //
   ////////////////
 
-  private[this] val phDir     = config.baseDir / "phase"
+  private[this] val phDir     = config.baseDir / s"phase${channel + 1}"
   private[this] val phPattern = "ph%06d.aif"
 
   private[this] val phCount   = Ref.make[Int ]()

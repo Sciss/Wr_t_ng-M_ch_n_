@@ -27,7 +27,7 @@ import de.sciss.synth.io.{AudioFile, AudioFileSpec}
 import de.sciss.wrtng.sound.Main.log
 
 import scala.concurrent.Future
-import scala.concurrent.stm.{InTxn, Ref, Txn, atomic}
+import scala.concurrent.stm.{InTxn, Ref, atomic}
 import scala.math.{max, min}
 
 final class AlgorithmImpl(client: OSCClient) extends Algorithm {
@@ -65,8 +65,7 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
   private[this] val afSpec        = AudioFileSpec(AIFF, Int16, numChannels = 1, sampleRate = SR)
 
   private[this] val dbCount       = Ref.make[Int ]()
-  private[this] val dbLen         = Ref.make[Long]()
-  private[this] val dbFile        = Ref.make[File]()
+  private[this] val dbFile        = Ref.make[AudioFileRef]()
 
   private[this] val dbTargetLen   = (SR * 180).toLong
   private[this] val maxCaptureLen = (SR *  20).toLong
@@ -95,15 +94,15 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
       f
     }
     atomic { implicit tx =>
-      dbFile () = db0
       dbCount() = db0.base.substring(2).toInt
       val spec  = AudioFile.readSpec(db0)
-      dbLen  () = spec.numFrames
+      dbFile () = new AudioFileRef(db0, spec.numFrames)
     }
   }
 
   def dbFill()(implicit tx: InTxn): Future[Long] = {
-    val len0    = dbLen()
+    val db0     = dbFile()
+    val len0    = db0.numFrames
     val captLen = min(maxCaptureLen, dbTargetLen - len0)
     if (captLen < minCaptureLen) txFutureSuccessful(len0)
     else {
@@ -111,11 +110,10 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
       log(f"dbFill() - capture dur $captSec%g sec")
       val futFileApp  = client.queryRadioRec(captSec)
       futFileApp.flatMap { fileApp =>
-        val spec      = AudioFile.readSpec(fileApp)
-        val numFrames = min(spec.numFrames, captLen)
+        val numFrames = min(fileApp.numFrames, captLen)
         atomic { implicit tx =>
-          dbAppend(fileApp = fileApp, numFrames = numFrames).andThen {
-            case _ => fileApp.delete()
+          dbAppend(fileApp = fileApp.f, numFrames = numFrames).andThen {
+            case _ => atomic { implicit tx => fileApp.release() }
           }
         }
       }
@@ -125,15 +123,15 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
   def dbAppend(fileApp: File, offset: Long = 0L, numFrames: Long)(implicit tx: InTxn): Future[Long] = {
     val cnt   = dbCount.transformAndGet(_ + 1)
     val db0   = dbFile()
-    val len0  = dbLen()
+    val len0  = db0.numFrames
     val fdLen = min(len0, min(numFrames, (SR * 0.1).toInt)).toInt
-    val db1   = mkDbFile(cnt)
+    val db1F  = mkDbFile(cnt)
 
     log(s"dbAppend(numFrames = $numFrames); len0 = $len0, fdLen = $fdLen")
 
     val g = Graph {
       import de.sciss.fscape.graph._
-      val inDb    = AudioFileIn(db0    , numChannels = 1)
+      val inDb    = AudioFileIn(db0.f  , numChannels = 1)
       val inApp   = AudioFileIn(fileApp, numChannels = 1)
       val cat     = if (fdLen == 0) {
         inDb ++ inApp
@@ -146,24 +144,24 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
         val post    = inApp.drop(fdLen)
         pre ++ cross ++ post
       }
-      AudioFileOut(db1, afSpec, in = cat)
+      AudioFileOut(db1F, afSpec, in = cat)
     }
 
     render[Long](ctlCfg, g) { implicit tx =>
       if (dbCount() == cnt) {
+        val spec    = AudioFile.readSpec(db1F)
+        val db1     = new AudioFileRef(db1F, spec.numFrames)
         val dbOld   = dbFile.swap(db1)
-        val spec    = AudioFile.readSpec(db1)
-        dbLen()     = spec.numFrames
-        Txn.afterCommit(_ => dbOld.delete())
+        dbOld.release()
         spec.numFrames
       } else {
-        dbLen()
+        dbFile().numFrames
       }
     }
   }
 
   def dbFindMatch(instr: OverwriteInstruction)(implicit tx: InTxn): Future[Span] = {
-    val len0 = dbLen()
+    val len0 = dbFile().numFrames
     // XXX TODO
     txFutureSuccessful {
       val span = Span(0L, min(len0, instr.newLength))
@@ -180,8 +178,7 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
   private[this] val phPattern = "ph%06d.aif"
 
   private[this] val phCount   = Ref.make[Int ]()
-  private[this] val phLen     = Ref.make[Long]()
-  private[this] val phFile    = Ref.make[File]()
+  private[this] val phFile    = Ref.make[AudioFileRef]()
 
   private def mkPhFile(i: Int): File = phDir / phPattern.format(i)
 
@@ -199,10 +196,9 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
       f
     }
     atomic { implicit tx =>
-      phFile () = ph0
       phCount() = ph0.base.substring(2).toInt
       val spec  = AudioFile.readSpec(ph0)
-      phLen  () = spec.numFrames
+      phFile () = new AudioFileRef(ph0, spec.numFrames)
     }
   }
 
@@ -223,7 +219,7 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
     log("phSelectOverwrite()")
 
     val ph0   = phFile()
-    val len0  = phLen ()
+    val len0  = ph0.numFrames
 
     val minStabDur   : Double =  10.0
     val stableDurProb: Double =   3.0 / 100
@@ -247,7 +243,7 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
 
     val fStretch = mStretch.step()
 
-    val fut = if (len0 > minPhaseLen) SelectOverwrite(ph0, ctlCfg) else txFutureSuccessful(Span(0L, 0L))
+    val fut = if (len0 > minPhaseLen) SelectOverwrite(ph0.f, ctlCfg) else txFutureSuccessful(Span(0L, 0L))
     fut.map { span =>
       val newLength0  = max(minPhInsLen, (span.length * fStretch + 0.5).toLong)
       val newDiff0    = newLength0 - span.length
@@ -270,12 +266,12 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
     val dbCnt     = dbCount.transformAndGet(_ + 1)
     val db0       = dbFile()
 //    val dbLen0    = dbLen()
-    val db1       = mkDbFile(dbCnt)
+    val db1F      = mkDbFile(dbCnt)
   
     val phCnt     = phCount.transformAndGet(_ + 1)
     val ph0       = phFile()
 //    val phLen0    = phLen()
-    val ph1       = mkPhFile(phCnt)
+    val ph1F      = mkPhFile(phCnt)
 
     val insFdLen  = min(instr.span.length/2, min(spliceLen/2, (SR * 0.1).toInt)).toInt
     val remFdLen  =                          min(spliceLen/2, (SR * 0.1).toInt) .toInt
@@ -284,8 +280,8 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
 
     val g = Graph {
       import de.sciss.fscape.graph._
-      val inDb    = AudioFileIn(db0, numChannels = 1)
-      val inPh    = AudioFileIn(ph0, numChannels = 1)
+      val inDb    = AudioFileIn(db0.f, numChannels = 1)
+      val inPh    = AudioFileIn(ph0.f, numChannels = 1)
 
       val insPre  = inPh.take(phPos)
       val insPost = inPh.drop(instr.span.stop)
@@ -306,7 +302,7 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
 
         insPre ++ cross ++ insPost
       }
-      AudioFileOut(ph1, afSpec, in = insCat)
+      AudioFileOut(ph1F, afSpec, in = insCat)
 
       val remPre  = inDb.take(dbPos)
       val remPost = inDb.drop(dbSpan.start + spliceLen)
@@ -317,24 +313,24 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
       } else {
         ???
       }
-      AudioFileOut(db1, afSpec, in = remCat)
+      AudioFileOut(db1F, afSpec, in = remCat)
     }
 
     render[Unit](ctlCfg, g) { implicit tx =>
       if (dbCount() == dbCnt) {
+        val spec    = AudioFile.readSpec(db1F)
+        val db1     = new AudioFileRef(db1F, spec.numFrames)
         val dbOld   = dbFile.swap(db1)
-        val spec    = AudioFile.readSpec(db1)
-        dbLen()     = spec.numFrames
-        Txn.afterCommit(_ => dbOld.delete())
+        dbOld.release()
       } else {
         log("performOverwrite() - not replacing db, has moved on")
       }
 
       if (phCount() == phCnt) {
+        val spec    = AudioFile.readSpec(ph1F)
+        val ph1     = new AudioFileRef(ph1F, spec.numFrames)
         val phOld   = phFile.swap(ph1)
-        val spec    = AudioFile.readSpec(ph1)
-        phLen()     = spec.numFrames
-        Txn.afterCommit(_ => phOld.delete())  // XXX TODO --- not. should ensure it doesn't still play
+        phOld.release()
       } else {
         log("performOverwrite() - not replacing ph, has moved on")
       }

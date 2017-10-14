@@ -24,7 +24,7 @@ import de.sciss.lucre.synth.{Buffer, InMemory, Server, Synth, Txn}
 import de.sciss.numbers.Implicits._
 import de.sciss.span.Span
 import de.sciss.synth.proc.AuralSystem
-import de.sciss.synth.{SynthDef, SynthGraph, UGenGraph, addAfter, addToTail, freeSelf}
+import de.sciss.synth.{Curve, SynthDef, SynthGraph, UGenGraph, addAfter, addToTail, freeSelf}
 import de.sciss.wrtng.sound.Main.log
 
 import scala.concurrent.stm.{Ref, TArray}
@@ -74,28 +74,32 @@ final class SoundScene(c: OSCClient) {
     ReplaceOut.ar("bus".kr, sig)
   }
 
-//  private[this] val diskGraph: SynthGraph = SynthGraph {
-//    import de.sciss.synth.Ops.stringToControl
-//    import de.sciss.synth.ugen._
-//    val bus     = "bus"     .ir
-//    val buf     = "buf"     .ir
-//    val dur     = "dur"     .ir
-//    val fdIn    = "fadeIn"  .ir
-//    val fdOut   = "fadeOut" .ir
-//    val disk    = VDiskIn.ar(numChannels = 2, buf = buf, speed = BufRateScale.ir(buf), loop = 0)
-//    val chan    = Select.ar(bus, disk)
-//    val hpf     = HPF.ar(chan, 80f)
-//    val env     = Env.linen(attack = fdIn, sustain = dur - (fdIn + fdOut), release = fdOut, curve = Curve.sine)
-//    val amp     = "amp".kr(1f)
-//    val eg      = EnvGen.ar(env, levelScale = amp /* , doneAction = freeSelf */)
-//    val done    = Done.kr(eg)
-//    //    val limDur  = 0.01f
-//    val limIn   = hpf * eg
-//    //    val lim     = Limiter.ar(limIn /* * gain */, level = -0.2.dbamp, dur = limDur)
-//    FreeSelf.kr(done) // TDelay.kr(done, limDur * 2))
-//    val sig     = limIn // lim
-//    Out.ar(bus, sig)
-//  }
+  private[this] val diskGraph1: SynthGraph = mkDiskGraph(1)
+
+//  private[this] val diskGraph2: SynthGraph = mkDiskGraph(2)
+
+  private def mkDiskGraph(numChannels: Int): SynthGraph = SynthGraph {
+    import de.sciss.synth.Ops.stringToControl
+    import de.sciss.synth.ugen._
+    val bus     = "bus"     .ir
+    val buf     = "buf"     .ir
+    val dur     = "dur"     .ir
+    val fdIn    = "fadeIn"  .ir
+    val fdOut   = "fadeOut" .ir
+    val disk    = VDiskIn.ar(numChannels = numChannels, buf = buf, speed = BufRateScale.ir(buf), loop = 0)
+    val chan    = if (numChannels == 1) disk else Select.ar(bus, disk)
+    val hpf     = HPF.ar(chan, 80f)
+    val env     = Env.linen(attack = fdIn, sustain = dur - (fdIn + fdOut), release = fdOut, curve = Curve.sine)
+    val amp     = "amp".kr(1f)
+    val eg      = EnvGen.ar(env, levelScale = amp /* , doneAction = freeSelf */)
+    val done    = Done.kr(eg)
+    //    val limDur  = 0.01f
+    val limIn   = hpf * eg
+    //    val lim     = Limiter.ar(limIn /* * gain */, level = -0.2.dbamp, dur = limDur)
+    FreeSelf.kr(done) // TDelay.kr(done, limDur * 2))
+    val sig     = limIn // lim
+    Out.ar(bus, sig)
+  }
 
   private[this] val masterGraph: SynthGraph = SynthGraph {
     import de.sciss.synth.Ops.stringToControl
@@ -208,33 +212,33 @@ final class SoundScene(c: OSCClient) {
 
   private[this] val beesQuiet = Array.fill(12)(Span(0L, 0L))
 
-//  def play(textId: Int, ch: Int, start: Long, stop: Long, fadeIn: Float, fadeOut: Float): Unit = {
-//
-////    if (!config.isLaptop) {
-////      relay.selectChannel(ch)
-////    }
-//
-//    val bus = ch // / 6
-//    serverTxn { implicit tx => s =>
-//      val target  = s.defaultGroup
-//      target.freeAll()
-//      val path    = (soundDir / pathFmt.format(textId + 1)).path
-//      val buf     = Buffer.diskIn(s)(path = path, startFrame = start, numChannels = 2)
-//      val dur     = math.max(0L, stop - start) / Vertex.SampleRate
-//      // avoid clicking
-//      val fdIn1   = if (fadeIn  > 0) fadeIn  else 0.01f
-//      val fdOut1  = if (fadeOut > 0) fadeOut else 0.01f
-//      val amp     = textAmpLin * ampChan(bus)
-//      val syn     = Synth.play(diskGraph, nameHint = Some("disk"))(target = target, addAction = addToTail,
-//        args = List("bus" -> bus, "buf" -> buf.id, "dur" -> dur, "fadeIn" -> fdIn1, "fadeOut" -> fdOut1, "amp" -> amp),
-//        dependencies = buf :: Nil)
-//      syn.onEndTxn { implicit tx =>
-//        buf.dispose()
-//        //          if (synthRef().contains(syn)) synthRef() = None
-//      }
-//      //        synthRef() = Some(syn)
+  def play(file: File, ch: Int, start: Long, stop: Long, fadeIn: Float, fadeOut: Float): Unit = {
+
+//    if (!config.isLaptop) {
+//      relay.selectChannel(ch)
 //    }
-//  }
+
+    val bus = ch // / 6
+    serverTxn { implicit tx => s =>
+      val target  = s.defaultGroup
+      target.freeAll()
+      val path    = file.path
+      val buf     = Buffer.diskIn(s)(path = path, startFrame = start, numChannels = 1)
+      val dur     = math.max(0L, stop - start) / SR
+      // avoid clicking
+      val fdIn1   = if (fadeIn  > 0) fadeIn  else 0.01f
+      val fdOut1  = if (fadeOut > 0) fadeOut else 0.01f
+      val amp     = /* textAmpLin * */ ampChan(bus)
+      val syn     = Synth.play(diskGraph1, nameHint = Some("disk"))(target = target, addAction = addToTail,
+        args = List("bus" -> bus, "buf" -> buf.id, "dur" -> dur, "fadeIn" -> fdIn1, "fadeOut" -> fdOut1, "amp" -> amp),
+        dependencies = buf :: Nil)
+      syn.onEndTxn { implicit tx =>
+        buf.dispose()
+        //          if (synthRef().contains(syn)) synthRef() = None
+      }
+      //        synthRef() = Some(syn)
+    }
+  }
 
   // ---- BEES  ----
 

@@ -20,6 +20,7 @@ import de.sciss.equal.Implicits._
 import de.sciss.file._
 import de.sciss.osc
 import de.sciss.osc.UDP
+import de.sciss.synth.io.AudioFile
 
 import scala.concurrent.stm.{InTxn, Ref, Txn, atomic}
 import scala.concurrent.{Future, Promise}
@@ -130,7 +131,7 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
         fut.onComplete {
           case Success(f) =>
             import sys.process._
-            Seq("cp", f.path, (userHome / "Music" / "test.wav").path).!
+            Seq("cp", f.f.path, (userHome / "Music" / "test.wav").path).!
             sendNow(osc.Message("/done", "test_rec", id), sender)
 
           case Failure(ex) =>
@@ -142,14 +143,21 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
       oscFallback(p, sender)
   }
 
-  def queryRadioRec(dur: Float)(implicit tx: InTxn): Future[File] = {
+  def queryRadioRec(dur: Float)(implicit tx: InTxn): Future[AudioFileRef] = {
     val Uid = mkTxnId()
-    val p   = Promise[File]()
+    val p   = Promise[AudioFileRef]()
     queryRadio[Long](Network.OscRadioRecBegin(uid = Uid, dur = dur), extraDelay = ((dur + 60) * 1000).toLong) {
       case Network.OscRadioRecDone(Uid, size) => size
     } { implicit tx => {
       case Success(QueryResult(_, size: Long)) =>
-        val u = new UpdateRadioTarget(Uid, this, radioSocket, size, p.success)
+        val u = new UpdateRadioTarget(Uid, this, radioSocket, size, { f =>
+          p.complete {
+            Try {
+              val spec = AudioFile.readSpec(f)
+              new AudioFileRef(f, spec.numFrames)
+            }
+          }
+        })
         radioUpdateTgt.swap(Some(u)).foreach(_.dispose())
         Txn.afterCommit(_ => u.begin())
 

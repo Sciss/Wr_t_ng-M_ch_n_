@@ -356,10 +356,10 @@ object Network {
 
     def Name: String = _Name
 
-    def apply(ch: Int): osc.Message = osc.Message(_Name, ch)
+    def apply(ch: Int, relay: Boolean): osc.Message = osc.Message(_Name, ch, relay)
 
-    def unapply(p: osc.Packet): Option[Int] = p match {
-      case osc.Message(`_Name`, ch: Int) => Some(ch)
+    def unapply(p: osc.Packet): Option[(Int, Boolean)] = p match {
+      case osc.Message(`_Name`, ch: Int, relay: Boolean) => Some((ch, relay))
       case _ => None
     }
   }

@@ -223,13 +223,19 @@ class MainFrame(c: OSCClient) {
 
   private[this] val ggIter1 = Button("Iter1") {
     selection.foreach { instance =>
-      c.sendNow(Network.OscIterate(ch = 0), instance.socketAddress)
+      c.sendNow(Network.OscIterate(ch = 0, relay = false), instance.socketAddress)
     }
   }
 
   private[this] val ggIter2 = Button("Iter2") {
     selection.foreach { instance =>
-      c.sendNow(Network.OscIterate(ch = 1), instance.socketAddress)
+      c.sendNow(Network.OscIterate(ch = 1, relay = false), instance.socketAddress)
+    }
+  }
+
+  private[this] val ggIter3 = Button("Iter+Relay") {
+    selection.foreach { instance =>
+      c.sendNow(Network.OscIterate(ch = 0, relay = true), instance.socketAddress)
     }
   }
 
@@ -303,9 +309,9 @@ class MainFrame(c: OSCClient) {
   })
   timRepeat.setRepeats(false)
 
-  private[this] val pButtons1 = new FlowPanel(ggRefresh, ggUpdate, ggReboot, ggShutdown, ggTestRec,
-    ggShell, ggServerInfo, ggIter1, ggIter2)
-  private[this] val pButtons2 = new FlowPanel(
+  private[this] val pButtons1 = new FlowPanel(ggRefresh, ggUpdate, ggReboot, ggShutdown, ggTestRec)
+  private[this] val pButtons2 = new FlowPanel(ggShell, ggServerInfo, ggIter1, ggIter2, ggIter3)
+  private[this] val pButtons3 = new FlowPanel(
     ggBees, new Label("Sound:"), ggSoundOff, ggSoundPing, ggSoundNoise, ggRepeat)
   private[this] val pChannels = new FlowPanel(Seq.tabulate(2 /* 12 */) { ch =>
     Button((ch + 1).toString) {
@@ -362,6 +368,7 @@ class MainFrame(c: OSCClient) {
   private[this] val pBottom = new BoxPanel(Orientation.Vertical) {
     contents += pButtons1
     contents += pButtons2
+    contents += pButtons3
     contents += pChannels
     contents += new FlowPanel(new Label("Main Vol."), ggAmp)
 //    contents += new FlowPanel(pChanAmps.zipWithIndex.map { case (slider, ch) =>

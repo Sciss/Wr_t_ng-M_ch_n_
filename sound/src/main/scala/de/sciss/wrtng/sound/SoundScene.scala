@@ -20,7 +20,7 @@ import java.nio.ByteBuffer
 import de.sciss.file._
 import de.sciss.lucre.stm.TxnLike
 import de.sciss.lucre.stm.TxnLike.peer
-import de.sciss.lucre.synth.{Buffer, InMemory, Server, Synth, Txn}
+import de.sciss.lucre.synth.{Buffer, Group, InMemory, Server, Synth, Txn}
 import de.sciss.numbers.Implicits._
 import de.sciss.span.Span
 import de.sciss.synth.proc.AuralSystem
@@ -114,6 +114,8 @@ final class SoundScene(c: OSCClient) {
   }
 
   private[this] val masterSynth = Ref(Option.empty[Synth])
+  private[this] val group1      = Ref(Option.empty[Group])
+  private[this] val group2      = Ref(Option.empty[Group])
 
   def setMasterVolume(amp: Float): Unit = {
     system.step { implicit tx =>
@@ -121,8 +123,8 @@ final class SoundScene(c: OSCClient) {
     }
   }
 
-  private def playTestGraph(s: Server, graph: SynthGraph, ch: Int)(implicit tx: S#Tx): Boolean = {
-    Synth.play(graph, nameHint = Some("test"))(target = s.defaultGroup, args = "bus" -> ch :: Nil)
+  private def playTestGraph(group: Group, graph: SynthGraph, ch: Int)(implicit tx: S#Tx): Boolean = {
+    Synth.play(graph, nameHint = Some("test"))(target = group, args = "bus" -> ch :: Nil)
     true
   }
 
@@ -179,16 +181,16 @@ final class SoundScene(c: OSCClient) {
 
   def testSound(ch: Int, tpe: Int, rest: Seq[Any]): Boolean = {
     system.step { implicit tx =>
-      aural.serverOption.fold(true) { s =>
-        val target  = s.defaultGroup
+      val targetOpt: Option[Group] = if (ch == 0) group1() else group2()
+      targetOpt.fold(true) { target =>
         target.freeAll()
         tpe match {
-          case 0 => playTestGraph(s, pingGraph      , ch = ch)
-          case 1 => playTestGraph(s, noisePulseGraph, ch = ch)
+          case 0 => playTestGraph(target, pingGraph      , ch = ch)
+          case 1 => playTestGraph(target, noisePulseGraph, ch = ch)
           case 2 => rest match {
             case Seq(b: ByteBuffer) =>
               readSynthDef(b).headOption.fold(false) { df =>
-                val syn = Synth.expanded(s, df.graph)
+                val syn = Synth.expanded(target.server, df.graph)
                 syn.play(target = target, args = "bus" -> ch :: Nil, addAction = addAfter /* addToTail */,
                   dependencies = Nil)
                 true
@@ -216,13 +218,13 @@ final class SoundScene(c: OSCClient) {
   def play(ref: AudioFileRef, ch: Int, start: Long, stop: Long, fadeIn: Float, fadeOut: Float)
           (implicit tx: Txn): Unit = {
 
-    aural.serverOption.foreach { s =>
+    val targetOpt: Option[Group] = if (ch == 0) group1() else group2()
+    targetOpt.foreach { target =>
       ref.acquire()
       val bus = ch // / 6
-      val target  = s.defaultGroup
       target.freeAll()
       val path    = ref.f.path
-      val buf     = Buffer.diskIn(s)(path = path, startFrame = start, numChannels = 1)
+      val buf     = Buffer.diskIn(target.server)(path = path, startFrame = start, numChannels = 1)
       val dur     = math.max(0L, stop - start) / SR
       // avoid clicking
       val fdIn1   = if (fadeIn  > 0) fadeIn  else 0.01f
@@ -365,6 +367,8 @@ final class SoundScene(c: OSCClient) {
 
     val ms = Synth.play(masterGraph, nameHint = Some("master"))(target = s.defaultGroup, addAction = addAfter)
     masterSynth() = Some(ms)
+    group1()      = Some(Group.play(s.defaultGroup, addAction = addToTail))
+    group2()      = Some(Group.play(s.defaultGroup, addAction = addToTail))
 
 //    tx.afterCommit {
 //      launchBees()

@@ -85,7 +85,19 @@ object Main extends MainLike {
         .validate { v => if (v >= -1 && v <= 255) success else failure("Must be -1, or 0 to 255") }
         .action { (v, c) => c.copy(dot = v) }
 
-//      opt[Double] ("bee-amp")
+      opt[Int] ("alsa-device-index")
+        .text (s"ALSA device index, for setting volume (-1 for no volume set; default: ${default.alsaDeviceIndex})")
+        .action { (v, c) => c.copy(alsaDeviceIndex = v) }
+
+      opt[String] ("alsa-volume-name")
+        .text (s"ALSA device's volume control name (${default.alsaVolumeName})")
+        .action { (v, c) => c.copy(alsaVolumeName = v) }
+
+      opt[String] ("alsa-volume-value")
+        .text (s"ALSA device's volume control value (${default.alsaVolumeValue})")
+        .action { (v, c) => c.copy(alsaVolumeValue = v) }
+
+      //      opt[Double] ("bee-amp")
 //        .text (s"Amplitude (decibels) for bees (default ${default.beeAmp}")
 //        .validate { v => if (v >= -30 && v <= 30) success else failure("Must be >= -30 and <= 30") }
 //        .action { (v, c) => c.copy(beeAmp = v.toFloat) }
@@ -114,12 +126,27 @@ object Main extends MainLike {
 //        }
 //      }
 
-      if (!config.isLaptop && config.qjLaunch) {
-        println("Launching QJackCtl...")
+      if (config.alsaDeviceIndex >=0) {
+        val cmd = Seq("amixer", "-c", config.alsaDeviceIndex.toString,
+          "set", config.alsaVolumeName, config.alsaVolumeValue)
+        println(cmd.mkString(" "))
         import sys.process._
         try {
-          // -p preset, -a active patch bay, -s start server
-          Seq("qjackctl", "-p", config.qjPreset, "-a", config.qjPatchBay.path, "-s").run()
+          cmd.!
+        } catch {
+          case NonFatal(ex) =>
+            Console.err.println("Could not set ALSA volume control")
+            ex.printStackTrace()
+        }
+      }
+
+      if (!config.isLaptop && config.qjLaunch) {
+        // -p preset, -a active patch bay, -s start server
+        val cmd = Seq("qjackctl", "-p", config.qjPreset, "-a", config.qjPatchBay.path, "-s")
+        println(cmd.mkString(" "))
+        import sys.process._
+        try {
+          cmd.run()
         } catch {
           case NonFatal(ex) =>
             Console.err.println("Could not start QJackCtl")

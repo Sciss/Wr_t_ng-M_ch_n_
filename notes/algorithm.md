@@ -12,4 +12,8 @@
 - relaying
 - proper db-span selection
 - occasional front/back trim
-- alsamixer set volume
+- prepare some long radio recording in case we have problems getting FM reception
+
+## alsa-mixer
+
+- value 0 is minimum; value 25 is -12 dB

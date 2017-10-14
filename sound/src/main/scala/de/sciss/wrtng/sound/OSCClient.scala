@@ -22,6 +22,7 @@ import de.sciss.lucre.synth.Txn
 import de.sciss.osc
 import de.sciss.osc.UDP
 import de.sciss.synth.io.AudioFile
+import de.sciss.wrtng.sound.Main.log
 
 import scala.concurrent.stm.{InTxn, Ref, atomic, Txn => STxn}
 import scala.concurrent.{Future, Promise}
@@ -91,7 +92,7 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
         }
       }
 
-    case Network.OscIterate(ch) =>
+    case Network.OscIterate(ch, relay) =>
       try {
         val algorithm = algorithms(ch)
         val fut = atomic { itx =>
@@ -102,11 +103,13 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
           case Success(_)   => sendNow(osc.Message("/done" , Network.OscIterate.Name), sender)
           case Failure(ex)  => sendNow(osc.Message("/error", Network.OscIterate.Name, exceptionToOSC(ex)), sender)
         }
+        if (relay) fut.onComplete(_ => relayIterate(ch))
       } catch {
         case NonFatal(ex) =>
           println("The fuck!?")
           ex.printStackTrace()
           sendNow(osc.Message("/error", Network.OscIterate.Name, exceptionToOSC(ex)), sender)
+          if (relay) relayIterate(ch)
       }
 
     case Network.OscSetVolume(amp) =>
@@ -147,6 +150,35 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
 
     case _ =>
       oscFallback(p, sender)
+  }
+
+  def relayIterate(ch: Int): Unit = {
+    val nextCh = 1 - ch
+    val target = if (ch == 0) {
+      log(s"relayIterate($ch) -> $nextCh (self)")
+      transmitter.localSocketAddress
+    } else {
+      val targets = filterAlive(Network.soundSocketSeq)
+      log(s"relayIterate($ch) -> ${targets.size} candidates")
+      if (targets.isEmpty) {
+        log(s"relayIterate($ch) -> $nextCh (self)")
+        transmitter.localSocketAddress
+      }
+      else {
+        val dots    = targets.map(Network.socketToDotMap.getOrElse(_, -1))
+        val myIdx   = dots.indexOf(dot)
+        val nextIdx = (myIdx + 1) % targets.size
+        val res     = targets(nextIdx)
+        log(s"relayIterate($ch) -> $nextCh ($res)")
+        res
+      }
+
+//        .sortBy { addr =>
+//        Network.socketToDotMap.get(addr).map(Network.soundDotSeq.indexOf)
+//      }
+    }
+
+    sendNow(Network.OscIterate(ch = nextCh, relay = true), target)
   }
 
   def queryRadioRec(dur: Float)(implicit tx: InTxn): Future[AudioFileRef] = {

@@ -22,7 +22,7 @@ import de.sciss.osc.UDP
 
 import scala.concurrent.stm.{InTxn, TMap, atomic}
 import scala.util.control.NonFatal
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 
 object OSCClient {
   final val RadioUpdateTimeout = 60000L
@@ -134,15 +134,5 @@ final class OSCClient(override val config: Config, val dot: Int,
 
     case _ =>
       oscFallback(p, sender)
-  }
-
-  def queryTxn[A](target: SocketAddress, m: osc.Message, extraDelay: Long = 0L)
-                 (handler: PartialFunction[osc.Packet, A])
-                 (result: InTxn => Try[QueryResult[A]] => Unit)
-                 (implicit tx: InTxn): Unit = {
-    val sq  = Vector(target)
-    val q   = new Query[A](this, sq, m, tx => seq => result(tx)(seq.map(_.head)), handler,
-      extraDelay = extraDelay, tx0 = tx)
-    addQuery(q)
   }
 }

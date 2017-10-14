@@ -29,7 +29,7 @@ object Main extends MainLike {
     val p = new scopt.OptionParser[Config](namePkg) {
       opt[File]("base-dir")
         .text (s"Base directory (default: ${default.baseDir})")
-        // .required()
+        .validate { f => if (f.isDirectory) success else failure(s"Not a directory: $f") }
         .action { (f, c) => c.copy(baseDir = f) }
 
       opt[Unit] ('d', "dump-osc")
@@ -132,8 +132,9 @@ object Main extends MainLike {
   }
 
   def run(localSocketAddress: InetSocketAddress, config: Config): Unit = {
-    /* val c = */ OSCClient(config, localSocketAddress).init()
-    //    new Heartbeat(c)
+    val c = OSCClient(config, localSocketAddress)
+    c.init()
+    new Heartbeat(c)
 //    if (!config.isLaptop) {
 //      try {
 //        c.relay.bothPins  // lazy, now initialises them

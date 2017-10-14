@@ -16,12 +16,16 @@ package de.sciss.wrtng
 import de.sciss.fscape.Graph
 import de.sciss.fscape.stream.Control
 
-import scala.concurrent.Await
 import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.Try
 
 package object sound {
   def any2stringadd(x: Any): Unit = ()  // that bloody thing doesn't die
+
+  implicit val executionContext: ExecutionContext = ExecutionContext.global
+
+  final val SR: Double = 48000.0
 
   implicit final class GraphOps(private val g: Graph) extends AnyVal {
     def renderAndWait(): Try[Unit] = {

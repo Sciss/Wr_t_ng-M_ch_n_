@@ -27,6 +27,8 @@ final class UpdateRadioTarget(val uid: Long, val c: OSCClientLike, val sender: S
   protected def queryNext(): Unit =
     reply(Network.OscRadioRecGet(uid = uid, offset = offset))
 
+  override protected val deleteFileOnDisposal = false
+
   protected def transferCompleted(f: File): Unit = {
     val m = Try(done(f)) match {
       case Success(_)  => Network.OscRadioRecDispose(uid)

@@ -25,7 +25,7 @@ import scala.collection.immutable.{Seq => ISeq}
 import scala.concurrent.stm.atomic
 
 object OSCClient {
-  final val Port = 57110
+  final val Port = 57111
 
   def apply(config: Config, host: String): OSCClient = {
     val localSocketAddress  = new InetSocketAddress(host, Port)

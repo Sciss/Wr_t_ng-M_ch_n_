@@ -221,11 +221,11 @@ class MainFrame(c: OSCClient) {
     }
   }
 
-  //  private[this] val ggTestPath = Button("Test Path") {
-  //    selection.foreach { instance =>
-  //      c.tx.send(osc.Message("/test-path-finder"), instance.socketAddress)
-  //    }
-  //  }
+  private[this] val ggIterate = Button("Iterate") {
+    selection.foreach { instance =>
+      c.sendNow(Network.OscIterate, instance.socketAddress)
+    }
+  }
 
   private[this] var shellString = "df"
 
@@ -298,7 +298,7 @@ class MainFrame(c: OSCClient) {
   timRepeat.setRepeats(false)
 
   private[this] val pButtons1 = new FlowPanel(ggRefresh, ggUpdate, ggReboot, ggShutdown, ggTestRec,
-    ggShell, ggServerInfo /* ggTestPath */)
+    ggShell, ggServerInfo, ggIterate)
   private[this] val pButtons2 = new FlowPanel(
     ggBees, new Label("Sound:"), ggSoundOff, ggSoundPing, ggSoundNoise, ggRepeat)
   private[this] val pChannels = new FlowPanel(Seq.tabulate(2 /* 12 */) { ch =>

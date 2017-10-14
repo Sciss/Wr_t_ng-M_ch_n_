@@ -61,6 +61,16 @@ abstract class OSCClientLike {
   protected final def addQuery[A](q: Query[A])(implicit tx: InTxn): Unit =
     queries.transform(q :: _)
 
+  def queryTxn[A](target: SocketAddress, m: osc.Message, extraDelay: Long = 0L)
+                 (handler: PartialFunction[osc.Packet, A])
+                 (result: InTxn => Try[QueryResult[A]] => Unit)
+                 (implicit tx: InTxn): Unit = {
+    val sq  = Vector(target)
+    val q   = new Query[A](this, sq, m, tx => seq => result(tx)(seq.map(_.head)), handler,
+      extraDelay = extraDelay, tx0 = tx)
+    addQuery(q)
+  }
+
   final protected def oscFallback(p: osc.Packet, sender: SocketAddress): Unit = {
     val wasHandled = atomic { implicit tx =>
       val qsIn      = queries()

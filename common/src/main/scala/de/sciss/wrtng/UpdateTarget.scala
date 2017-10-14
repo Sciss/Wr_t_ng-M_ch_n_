@@ -16,6 +16,7 @@ package de.sciss.wrtng
 import java.io.RandomAccessFile
 import java.net.SocketAddress
 import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 
 import de.sciss.equal.Implicits._
 import de.sciss.file._
@@ -38,10 +39,9 @@ abstract class UpdateTarget(suffix: String) {
 
   protected val deleteFileOnDisposal: Boolean = true
 
-  private[this] var _offset = 0L
-  private[this] val f       = createFile()
-  private[this] val raf     = new RandomAccessFile(f, "rw")
-  private[this] val ch      = raf.getChannel
+  private[this] var _offset : Long        = 0L
+  private[this] var f       : File        = _
+  private[this] var ch      : FileChannel = _
 
   final protected def offset: Long = _offset
 
@@ -50,6 +50,9 @@ abstract class UpdateTarget(suffix: String) {
 
   final def begin(): Unit = {
     require(_offset === 0L)
+    f       = createFile()
+    val raf = new RandomAccessFile(f, "rw")
+    ch      = raf.getChannel
     queryNext()
   }
 
@@ -83,7 +86,7 @@ abstract class UpdateTarget(suffix: String) {
   }
 
   def dispose(): Unit = {
-    ch.close()
-    if (deleteFileOnDisposal) f.delete()
+    if (ch != null) ch.close()
+    if (deleteFileOnDisposal && f != null) f.delete()
   }
 }

@@ -346,4 +346,8 @@ object Network {
       case _ => None
     }
   }
+
+  //////
+
+  final val OscIterate : osc.Message = osc.Message("/iterate")
 }

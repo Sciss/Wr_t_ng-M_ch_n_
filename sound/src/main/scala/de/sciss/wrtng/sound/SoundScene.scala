@@ -364,9 +364,9 @@ final class SoundScene(c: OSCClient) {
     val ms = Synth.play(masterGraph, nameHint = Some("master"))(target = s.defaultGroup, addAction = addAfter)
     masterSynth() = Some(ms)
 
-    tx.afterCommit {
-      launchBees()
-    }
+//    tx.afterCommit {
+//      launchBees()
+//    }
   }
 
   @volatile

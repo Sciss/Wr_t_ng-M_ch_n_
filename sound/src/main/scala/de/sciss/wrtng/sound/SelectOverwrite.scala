@@ -16,7 +16,11 @@ package sound
 
 import de.sciss.file._
 import de.sciss.fscape.{GE, Graph}
+import de.sciss.synth.UGenSource.Vec
 import de.sciss.synth.io.AudioFile
+
+import scala.concurrent.Promise
+import scala.util.{Failure, Success}
 
 object SelectOverwrite {
   def main(args: Array[String]): Unit = {
@@ -96,13 +100,25 @@ object SelectOverwrite {
 //      */
 //    val correlationMotion = Motion.linexp(Motion.walk(0, 1, 0.1), 0, 1, 0.2, 2.0)
 
+    val pSpan = Promise[Vec[Long]]()
+
     val g = Graph {
       val sel = selectPart(fileIn)
-      sel.startFrame.poll(0, "start-frame")
-      sel.stopFrame .poll(0, "stop-frame" )
+      // sel.startFrame.poll(0, "start-frame")
+      // sel.stopFrame .poll(0, "stop-frame" )
+
+      import de.sciss.fscape.graph._
+      FutureLong(sel.startFrame ++ sel.stopFrame, pSpan)
     }
 
     g.renderAndWait().get
     println("Done.")
+
+    pSpan.future.onComplete {
+      case Success(Vec(start, stop)) =>
+        println(s"start-frame =  $start, stop-frame = $stop")
+      case Success(other) => println(s"Huh? Other: $other")
+      case Failure(ex) => ex.printStackTrace()
+    }
   }
 }

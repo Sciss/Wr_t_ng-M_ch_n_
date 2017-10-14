@@ -32,15 +32,27 @@ import Main.log
 final class AlgorithmImpl(client: OSCClient) extends Algorithm {
   import client.config
 
-  /*
+  def init(): this.type = {
+    dbInit()
+    phInit()
+    this
+  }
 
-   */
+  def iterate()(implicit tx: InTxn): Future[Unit] = {
+    log("iterate()")
+    val futFill = dbFill()
+    futFill.map(_ => ())
+  }
+
+  ////////////////
+  //  Database  //
+  ////////////////
 
   private[this] val dbDir     = config.baseDir / "database"
   private[this] val dbPattern = "db%06d.aif"
   private[this] val afSpec    = AudioFileSpec(AIFF, Int16, numChannels = 1, sampleRate = SR)
 
-  private[this] val dbCount   = Ref.make[Int]()
+  private[this] val dbCount   = Ref.make[Int ]()
   private[this] val dbLen     = Ref.make[Long]()
   private[this] val dbFile    = Ref.make[File]()
 
@@ -48,7 +60,7 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
   private[this] val maxCaptureLen = (SR *  20).toLong
   private[this] val minCaptureLen = (SR *   4).toLong
 
-  private[this] val ctlCfg    = {
+  private[this] val ctlCfg: Control.Config = {
     val c = Control.Config()
     c.actorSystem = ActorSystem("algorithm")
     c.useAsync    = false
@@ -57,8 +69,9 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
 
   private def mkDbFile(i: Int): File = dbDir / dbPattern.format(i)
 
-  def init(): this.type = {
+  private def dbInit(): Unit = {
     dbDir.mkdirs()
+
     val soundFiles  = dbDir.children(f => f.isFile && f.name.startsWith("db") && f.extL == "aif")
     val candidate   = soundFiles.filter(_.length() > 0L).sorted(File.NameOrdering).lastOption
     val toDelete    = soundFiles.toSet -- candidate
@@ -75,13 +88,6 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
       val spec  = AudioFile.readSpec(db0)
       dbLen  () = spec.numFrames
     }
-    this
-  }
-
-  def iterate()(implicit tx: InTxn): Future[Unit] = {
-    log("iterate()")
-    val futFill = dbFill()
-    futFill.map(_ => ())
   }
 
   def dbFill()(implicit tx: InTxn): Future[Long] = {
@@ -154,5 +160,39 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
     }
 
     p.future
+  }
+
+  ////////////////
+  //  Ph(r)ase  //
+  ////////////////
+
+  private[this] val phDir     = config.baseDir / "phase"
+  private[this] val phPattern = "ph%06d.aif"
+
+  private[this] val phCount   = Ref.make[Int ]()
+  private[this] val phLen     = Ref.make[Long]()
+  private[this] val phFile    = Ref.make[File]()
+
+  private def mkPhFile(i: Int): File = phDir / phPattern.format(i)
+
+  private def phInit(): Unit = {
+    phDir.mkdirs()
+
+    val soundFiles  = phDir.children(f => f.isFile && f.name.startsWith("ph") && f.extL == "aif")
+    val candidate   = soundFiles.filter(_.length() > 0L).sorted(File.NameOrdering).lastOption
+    val toDelete    = soundFiles.toSet -- candidate
+    toDelete.foreach(_.delete())
+    val ph0 = candidate.getOrElse {
+      val f   = mkPhFile(0)
+      val af  = AudioFile.openWrite(f, afSpec)
+      af.close()
+      f
+    }
+    atomic { implicit tx =>
+      phFile () = ph0
+      phCount() = ph0.base.substring(2).toInt
+      val spec  = AudioFile.readSpec(ph0)
+      phLen  () = spec.numFrames
+    }
   }
 }

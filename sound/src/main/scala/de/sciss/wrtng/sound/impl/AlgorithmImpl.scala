@@ -26,9 +26,9 @@ import de.sciss.synth.io.SampleFormat.Int16
 import de.sciss.synth.io.{AudioFile, AudioFileSpec}
 import de.sciss.wrtng.sound.Main.log
 
+import scala.concurrent.Future
 import scala.concurrent.stm.{InTxn, Ref, Txn, atomic}
-import scala.concurrent.{Future, Promise}
-import scala.util.control.NonFatal
+import scala.math.{max, min}
 
 final class AlgorithmImpl(client: OSCClient) extends Algorithm {
   import client.config
@@ -46,8 +46,12 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
       _     <- dbFill()
       instr <- atomic { implicit tx => phSelectOverwrite  ()            }
       mat   <- atomic { implicit tx => dbFindMatch        (instr)       }
-      _     <- atomic { implicit tx => phPerformOverwrite (instr, mat)  }
-    } yield ()
+      _     <- atomic { implicit tx => performOverwrite   (instr, mat)  }
+    } yield {
+
+      log("iterate() - done")
+      ()
+    }
   }
 
   private[this] implicit val random: TxRnd = TxnRandom.plain()
@@ -100,15 +104,15 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
 
   def dbFill()(implicit tx: InTxn): Future[Long] = {
     val len0    = dbLen()
-    val captLen = math.min(maxCaptureLen, dbTargetLen - len0)
-    if (captLen < minCaptureLen) Future.successful(len0)
+    val captLen = min(maxCaptureLen, dbTargetLen - len0)
+    if (captLen < minCaptureLen) txFutureSuccessful(len0)
     else {
       val captSec     = (captLen / SR).toFloat
       log(f"dbFill() - capture dur $captSec%g sec")
       val futFileApp  = client.queryRadioRec(captSec)
       futFileApp.flatMap { fileApp =>
         val spec      = AudioFile.readSpec(fileApp)
-        val numFrames = math.min(spec.numFrames, captLen)
+        val numFrames = min(spec.numFrames, captLen)
         atomic { implicit tx =>
           dbAppend(fileApp = fileApp, numFrames = numFrames).andThen {
             case _ => fileApp.delete()
@@ -122,8 +126,10 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
     val cnt   = dbCount.transformAndGet(_ + 1)
     val db0   = dbFile()
     val len0  = dbLen()
-    val fdLen = math.min(len0, math.min(numFrames, (SR * 0.1).toInt)).toInt
+    val fdLen = min(len0, min(numFrames, (SR * 0.1).toInt)).toInt
     val db1   = mkDbFile(cnt)
+
+    log(s"dbAppend(numFrames = $numFrames); len0 = $len0, fdLen = $fdLen")
 
     val g = Graph {
       import de.sciss.fscape.graph._
@@ -143,37 +149,27 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
       AudioFileOut(db1, afSpec, in = cat)
     }
 
-    val p = Promise[Long]()
-    Txn.afterCommit { _ =>
-      try {
-        val ctl = Control(ctlCfg)
-        ctl.run(g)
-        val futF = ctl.status.map { _ =>
-          atomic { implicit tx =>
-            if (dbCount() == cnt) {
-              val dbOld   = dbFile.swap(db1)
-              val spec    = AudioFile.readSpec(db1)
-              dbLen()     = spec.numFrames
-              Txn.afterCommit(_ => dbOld.delete())
-              spec.numFrames
-            } else {
-              dbLen()
-            }
-          }
-        }
-        p.completeWith(futF)
-      } catch {
-        case NonFatal(ex) => p.failure(ex)
+    render[Long](ctlCfg, g) { implicit tx =>
+      if (dbCount() == cnt) {
+        val dbOld   = dbFile.swap(db1)
+        val spec    = AudioFile.readSpec(db1)
+        dbLen()     = spec.numFrames
+        Txn.afterCommit(_ => dbOld.delete())
+        spec.numFrames
+      } else {
+        dbLen()
       }
     }
-
-    p.future
   }
 
   def dbFindMatch(instr: OverwriteInstruction)(implicit tx: InTxn): Future[Span] = {
     val len0 = dbLen()
     // XXX TODO
-    Future.successful(Span(0L, math.min(len0, instr.newLength)))
+    txFutureSuccessful {
+      val span = Span(0L, min(len0, instr.newLength))
+      log(s"dbFindMatch($instr) yields $span")
+      span
+    }
   }
 
   ////////////////
@@ -217,11 +213,15 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
   private[this] val stretchMotion = Ref(stretchStable)
 
   private[this] val minPhaseDur =   3.0
+  private[this] val minPhInsDur =   3.0
   private[this] val maxPhaseDur =  30.0 // 150.0
   private[this] val minPhaseLen = (SR * minPhaseDur).toLong
+  private[this] val minPhInsLen = (SR * minPhInsDur).toLong
   private[this] val maxPhaseLen = (SR * maxPhaseDur).toLong
 
   def phSelectOverwrite()(implicit tx: InTxn): Future[OverwriteInstruction] = {
+    log("phSelectOverwrite()")
+
     val ph0   = phFile()
     val len0  = phLen ()
 
@@ -247,18 +247,97 @@ final class AlgorithmImpl(client: OSCClient) extends Algorithm {
 
     val fStretch = mStretch.step()
 
-    val fut = if (len0 > minPhaseLen) SelectOverwrite(ph0, ctlCfg) else Future.successful(Span(0L, 0L))
+    val fut = if (len0 > minPhaseLen) SelectOverwrite(ph0, ctlCfg) else txFutureSuccessful(Span(0L, 0L))
     fut.map { span =>
-      val newLength0  = (span.length * fStretch + 0.5).toLong
+      val newLength0  = max(minPhInsLen, (span.length * fStretch + 0.5).toLong)
       val newDiff0    = newLength0 - span.length
-      val len1        = math.max(minPhaseLen, math.min(maxPhaseLen, len0 + newDiff0))
+      val len1        = max(minPhaseLen, min(maxPhaseLen, len0 + newDiff0))
       val newDiff1    = len1 - len0
       val newLength   = newDiff1 + span.length
-      OverwriteInstruction(span, newLength = newLength)
+      val instr       = OverwriteInstruction(span, newLength = newLength)
+      log(s"phSelectOverwrite() yields $instr")
+      instr
     }
   }
 
-  def phPerformOverwrite(instr: OverwriteInstruction, dbSpan: Span)(implicit tx: InTxn): Future[Unit] = {
-    ???
+  def performOverwrite(instr: OverwriteInstruction, dbSpan: Span)(implicit tx: InTxn): Future[Unit] = {
+    val dbPos     = dbSpan    .start
+    val phPos     = instr.span.start
+    val spliceLen = min(dbSpan.length, instr.newLength)
+    
+    require(instr.newLength == dbSpan.length)
+    
+    val dbCnt     = dbCount.transformAndGet(_ + 1)
+    val db0       = dbFile()
+//    val dbLen0    = dbLen()
+    val db1       = mkDbFile(dbCnt)
+  
+    val phCnt     = phCount.transformAndGet(_ + 1)
+    val ph0       = phFile()
+//    val phLen0    = phLen()
+    val ph1       = mkPhFile(phCnt)
+
+    val insFdLen  = min(instr.span.length/2, min(spliceLen/2, (SR * 0.1).toInt)).toInt
+    val remFdLen  =                          min(spliceLen/2, (SR * 0.1).toInt) .toInt
+
+    log(s"performOverwrite(); dbPos $dbPos, phPos $phPos, spliceLen $spliceLen, insFdLen $insFdLen, remFdLen $remFdLen")
+
+    val g = Graph {
+      import de.sciss.fscape.graph._
+      val inDb    = AudioFileIn(db0, numChannels = 1)
+      val inPh    = AudioFileIn(ph0, numChannels = 1)
+
+      val insPre  = inPh.take(phPos)
+      val insPost = inPh.drop(instr.span.stop)
+      val insMid  = inDb.drop(dbPos).take(spliceLen)
+
+      val insCat  = if (insFdLen == 0) {
+        insPre ++ insMid ++ insPost
+
+      } else {
+        val preOut  = inPh.drop(phPos).take(insFdLen) * Line(1, 0, insFdLen).sqrt
+        val midIn   = insMid          .take(insFdLen) * Line(0, 1, insFdLen).sqrt
+        val cross0  = (preOut ++ midIn).clip2(1.0)
+        val cross1  = insMid.drop(insFdLen).take(spliceLen - 2*insFdLen)
+        val midOut  = insMid.drop(spliceLen       - insFdLen)                * Line(1, 0, insFdLen).sqrt
+        val postIn  = inPh  .drop(instr.span.stop - insFdLen).take(insFdLen) * Line(0, 1, insFdLen).sqrt
+        val cross2  = (midOut ++ postIn).clip2(1.0)
+        val cross   = cross0 ++ cross1 ++ cross2
+
+        insPre ++ cross ++ insPost
+      }
+      AudioFileOut(ph1, afSpec, in = insCat)
+
+      val remPre  = inDb.take(dbPos)
+      val remPost = inDb.drop(dbSpan.start + spliceLen)
+
+      val remCat  = if (true /* XXX TODO remFdLen == 0 */) {
+        remPre ++ remPost
+
+      } else {
+        ???
+      }
+      AudioFileOut(db1, afSpec, in = remCat)
+    }
+
+    render[Unit](ctlCfg, g) { implicit tx =>
+      if (dbCount() == dbCnt) {
+        val dbOld   = dbFile.swap(db1)
+        val spec    = AudioFile.readSpec(db1)
+        dbLen()     = spec.numFrames
+        Txn.afterCommit(_ => dbOld.delete())
+      } else {
+        log("performOverwrite() - not replacing db, has moved on")
+      }
+
+      if (phCount() == phCnt) {
+        val phOld   = phFile.swap(ph1)
+        val spec    = AudioFile.readSpec(ph1)
+        phLen()     = spec.numFrames
+        Txn.afterCommit(_ => phOld.delete())  // XXX TODO --- not. should ensure it doesn't still play
+      } else {
+        log("performOverwrite() - not replacing ph, has moved on")
+      }
+    }
   }
 }

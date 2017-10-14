@@ -87,12 +87,19 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
       }
 
     case Network.OscIterate =>
-      val fut = atomic { implicit tx =>
-        algorithm.iterate()
-      }
-      fut.onComplete {
-        case Success(_)   => sendNow(osc.Message("/done", Network.OscIterate.name), sender)
-        case Failure(ex)  => sendNow(osc.Message("/error", Network.OscIterate.name, ex.toString.take(200)), sender)
+      try {
+        val fut = atomic { implicit tx =>
+          algorithm.iterate()
+        }
+        fut.onComplete {
+          case Success(_)   => sendNow(osc.Message("/done" , Network.OscIterate.name), sender)
+          case Failure(ex)  => sendNow(osc.Message("/error", Network.OscIterate.name, exceptionToOSC(ex)), sender)
+        }
+      } catch {
+        case NonFatal(ex) =>
+          println("The fuck!?")
+          ex.printStackTrace()
+          sendNow(osc.Message("/error", Network.OscIterate.name, exceptionToOSC(ex)), sender)
       }
 
     case Network.OscSetVolume(amp) =>
@@ -104,7 +111,7 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
         sendNow(osc.Message("/done", "server-info", info), sender)
       } catch {
         case NonFatal(ex) =>
-          sendNow(osc.Message("/fail", "server-info", ex.toString), sender)
+          sendNow(osc.Message("/fail", "server-info", exceptionToOSC(ex)), sender)
       }
 
     case osc.Message("/test-channel", ch: Int, sound: Int, rest @ _*) =>
@@ -114,8 +121,7 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
         sendNow(osc.Message("/done", "test-channel", ch, ok), sender)
       } catch {
         case NonFatal(ex) =>
-          val msg = Util.formatException(ex)
-          sendNow(osc.Message("/fail", "test-channel", ch, msg), sender)
+          sendNow(osc.Message("/fail", "test-channel", ch, exceptionToOSC(ex)), sender)
       }
 
     case osc.Message("/test_rec", id: Int, dur: Float) =>
@@ -128,7 +134,7 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
             sendNow(osc.Message("/done", "test_rec", id), sender)
 
           case Failure(ex) =>
-            sendNow(osc.Message("/error", "test_rec", id, ex.toString.take(200)), sender)
+            sendNow(osc.Message("/error", "test_rec", id, exceptionToOSC(ex)), sender)
         }
       }
 

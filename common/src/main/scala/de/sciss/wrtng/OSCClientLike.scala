@@ -188,4 +188,9 @@ abstract class OSCClientLike {
     val i = txnCount.getAndTransform(_ + 1)
     (i.toLong * 1000) + dot
   }
+
+  final protected def exceptionToOSC(ex: Throwable): String = {
+    val s = Util.formatException(ex)
+    if (s.length < 512) s else s.substring(0, 512)
+  }
 }

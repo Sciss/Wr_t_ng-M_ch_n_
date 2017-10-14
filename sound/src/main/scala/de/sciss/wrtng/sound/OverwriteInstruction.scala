@@ -16,9 +16,9 @@ package de.sciss.wrtng.sound
 import de.sciss.span.Span
 
 final case class OverwriteInstruction(span: Span, newLength: Long) {
-  def printFormat: String = {
+  override def toString: String = {
     val s = formatSpan(span)
-    val p = if (span.length > 0) formatPercent(newLength.toDouble / span.length) else newLength.toString
-    s"over($s -> $p)"
+    val a = s"$productPrefix($s, newLength = $newLength)"
+    if (span.length > 0) s"$a - ${formatPercent(newLength.toDouble / span.length)}" else a
   }
 }

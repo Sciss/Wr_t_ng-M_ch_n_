@@ -80,12 +80,12 @@ final class OSCClient(override val config: Config, val dot: Int,
                 ex.printStackTrace()
                 atomic { implicit tx =>
                   upd.disposeTxn()
-                  sendTxn(sender, Network.OscRadioRecError(uid, ex.toString.take(200)))
+                  sendTxn(sender, Network.OscRadioRecError(uid, exceptionToOSC(ex)))
                 }
             }
 
           case Failure(ex) =>
-            sendNow(Network.OscRadioRecError(uid, ex.toString.take(200)), sender)
+            sendNow(Network.OscRadioRecError(uid, exceptionToOSC(ex)), sender)
         }
       }
 
@@ -128,7 +128,7 @@ final class OSCClient(override val config: Config, val dot: Int,
           case Success(snippet) =>
             sendNow(osc.Message("/done", "/test_rec", id, snippet.file.path, snippet.offset, snippet.numFrames), sender)
           case Failure(ex) =>
-            sendNow(osc.Message("/error", "/test_rec", id, ex.toString.take(200)), sender)
+            sendNow(osc.Message("/error", "/test_rec", id, exceptionToOSC(ex)), sender)
         }
       }
 

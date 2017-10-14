@@ -20,10 +20,10 @@ import de.sciss.fscape.{GE, Graph}
 import de.sciss.span.Span
 import de.sciss.synth.UGenSource.Vec
 import de.sciss.synth.io.AudioFile
+import de.sciss.wrtng.sound.Main.log
 
-import scala.concurrent.stm.{InTxn, Txn}
+import scala.concurrent.stm.InTxn
 import scala.concurrent.{Future, Promise}
-import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
 object SelectOverwrite {
@@ -39,7 +39,6 @@ object SelectOverwrite {
   final case class SelectPart(startFrame: GE, stopFrame: GE)
 
   def selectPart(fileIn: File): SelectPart = {
-
     val fftSize   : Int     = 1024 // 2048
     val stepDiv   : Int     = 4
     val numMel    : Int     = 42
@@ -54,6 +53,12 @@ object SelectOverwrite {
     import specIn.{numChannels, numFrames, sampleRate}
     def mkIn()      = AudioFileIn(fileIn, numChannels = numChannels)
     val in          = mkIn()
+
+    // XXX TODO --- enabling this prevents some hanging. but why?
+    // if (Main.showLog) {
+      in.poll(0, s"SelectOverwrite().fscape")
+    // }
+
     val stepSize    = fftSize / stepDiv
     val sideFrames  = (sampleRate * sideDur ).toInt
     val spaceFrames = (sampleRate * spaceDur).toInt
@@ -93,13 +98,12 @@ object SelectOverwrite {
     val top         = PriorityQueue(keysG, valuesG, size = 1)    // lowest covariances mapped to frames
     val startF      = top * stepSize
     val valuesGE    = BufferMemory(valuesG, numCov1)
-    val stopF       = valuesGE.dropWhile(valuesGE <= top).take(1) * stepSize
+    val stopF       = (valuesG.dropWhile(valuesGE <= top) :+ numCov /* numSteps */).take(1) * stepSize
 
     SelectPart(startFrame = startF, stopFrame = stopF)
   }
 
   def apply(fileIn: File, ctlCfg: Control.Config)(implicit tx: InTxn): Future[Span] = {
-    val pRes  = Promise[Span]()
     val pSpan = Promise[Vec[Long]]()
 
     val g = Graph {
@@ -108,21 +112,12 @@ object SelectOverwrite {
       FutureLong(sel.startFrame ++ sel.stopFrame, pSpan)
     }
 
-    Txn.afterCommit { _ =>
-      try {
-        val ctl = Control(ctlCfg)
-        ctl.run(g)
-        val fut = ctl.status.map { _ =>
-          val Vec(start, stop) = pSpan.future.value.get.get
-          Span(start, stop)
-        }
-        pRes.completeWith(fut)
-      } catch {
-        case NonFatal(ex) => pRes.failure(ex)
-      }
+    render[Span](ctlCfg, g) { implicit tx =>
+      val value = pSpan.future.value
+      log(s"SelectOverwrite() - result value is $value")
+      val Vec(start, stop) = value.get.get
+      Span(start, stop)
     }
-
-    pRes.future
   }
 
   def run(fileIn: File /* , fileOut: File */): Unit = {

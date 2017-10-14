@@ -9,7 +9,7 @@ lazy val soundNameL = s"$baseNameL-sound"
 lazy val radioName  = s"$baseName-Radio"
 lazy val radioNameL = s"$baseNameL-radio"
 
-lazy val projectVersion = "0.1.1-SNAPSHOT"
+lazy val projectVersion = "0.1.2-SNAPSHOT"
 
 lazy val audioFileVersion       = "1.4.6"
 lazy val desktopVersion         = "0.8.0"

@@ -19,9 +19,10 @@ import de.sciss.lucre.confluent.TxnRandom
 import de.sciss.span.Span
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.stm.InTxn
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.stm.{InTxn, Txn, atomic}
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.Try
+import scala.util.control.NonFatal
 
 package object sound {
   def any2stringadd(x: Any): Unit = ()  // that bloody thing doesn't die
@@ -100,5 +101,29 @@ package object sound {
     }
   }
 
+  def txFutureSuccessful[A](value: => A)(implicit tx: InTxn): Future[A] = {
+    val p = Promise[A]()
+    Txn.afterCommit(_ => p.complete(Try(value)))
+    p.future
+  }
+
   type TxRnd = TxnRandom[InTxn]
+
+  def render[A](ctlCfg: Control.Config, g: Graph)(done: InTxn => A)(implicit tx: InTxn): Future[A] = {
+    val p = Promise[A]()
+    Txn.afterCommit { _ =>
+      try {
+        val ctl = Control(ctlCfg)
+        ctl.run(g)
+        val futF = ctl.status.map { _ =>
+          atomic(done)
+        }
+        p.completeWith(futF)
+      } catch {
+        case NonFatal(ex) => p.failure(ex)
+      }
+    }
+
+    p.future
+  }
 }

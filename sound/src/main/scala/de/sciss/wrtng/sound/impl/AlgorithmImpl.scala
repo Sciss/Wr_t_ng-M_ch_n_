@@ -22,6 +22,7 @@ import de.sciss.fscape.stream.Control
 import de.sciss.lucre.confluent.TxnRandom
 import de.sciss.lucre.stm.TxnLike
 import de.sciss.lucre.synth.Txn
+import de.sciss.numbers
 import de.sciss.span.Span
 import de.sciss.synth.io.AudioFileType.AIFF
 import de.sciss.synth.io.SampleFormat.Int16
@@ -47,7 +48,8 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
     val ph0 = phFile()
     if (ph0.numFrames > 4800) {
       val fadeIn  = 0.1f
-      val fadeOut = 0.1f
+      import numbers.Implicits._
+      val fadeOut = random.nextFloat().linlin(0, 1, 0.1f, 0.5f)
       val start   = 0L
       val stop    = ph0.numFrames
       client.scene.play(ph0, ch = channel, start = start, stop = stop, fadeIn = fadeIn, fadeOut = fadeOut)
@@ -231,14 +233,15 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
   private[this] val minPhInsLen = (SR * minPhInsDur).toLong
   private[this] val maxPhaseLen = (SR * maxPhaseDur).toLong
 
+  private[this] val minStabDur      : Double =  10.0
+  private[this] val stableDurProb   : Double =   3.0 / 100
+  private[this] val ovrBoundaryProb : Double =   4.0 / 100
+
   def phSelectOverwrite()(implicit tx: InTxn): Future[OverwriteInstruction] = {
     log("phSelectOverwrite()")
 
     val ph0   = phFile()
     val len0  = ph0.numFrames
-
-    val minStabDur   : Double =  10.0
-    val stableDurProb: Double =   3.0 / 100
 
     val pDur = framesToSeconds(len0)
     val mStretch = if (pDur <= minPhaseDur) {
@@ -257,10 +260,18 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
       stretchMotion()
     }
 
-    val fStretch = mStretch.step()
+    val fStretch  = mStretch.step()
+    val useBound  = random.nextDouble() <= ovrBoundaryProb
+    val boundEnd  = useBound && random.nextBoolean()
+    val jitAmt    = random.nextDouble()
 
     val fut = if (len0 > minPhaseLen) SelectOverwrite(ph0.f, ctlCfg) else txFutureSuccessful(Span(0L, 0L))
-    fut.map { span =>
+    fut.map { span0 =>
+      val span1       = if (!useBound) span0 else {
+        if (boundEnd) Span(len0 - span0.length, len0)
+        else          Span(0L, span0.length)
+      }
+      val span        = jitter(span1, r = jitAmt, secs = 0.2f, minStart = 0L, maxStop = len0)
       val newLength0  = max(minPhInsLen, (span.length * fStretch + 0.5).toLong)
       val newDiff0    = newLength0 - span.length
       val len1        = max(minPhaseLen, min(maxPhaseLen, len0 + newDiff0))
@@ -270,6 +281,13 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
       log(s"phSelectOverwrite() yields $instr")
       instr
     }
+  }
+
+  private def jitter(in: Span, r: Double, secs: Float, minStart: Long, maxStop: Long): Span = {
+    val secs2   = secs * 2
+    val dFrames = (r * secs2 - secs * SR).toLong
+    val d       = max(minStart - in.start, min(maxStop - in.stop, dFrames))
+    Span(in.start + d, in.stop + d)
   }
 
   def performOverwrite(instr: OverwriteInstruction, dbSpan: Span)(implicit tx: InTxn): Future[Unit] = {

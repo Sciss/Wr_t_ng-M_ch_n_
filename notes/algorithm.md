@@ -9,10 +9,12 @@
 ## to-do
 
 - AGC
-- relaying
+- relaying: order (or change cables)
+- relaying: pass audio? now i think it's better without
 - proper db-span selection
 - occasional front/back trim
 - prepare some long radio recording in case we have problems getting FM reception
+- track timeout for iteration; ensure that iteration is not re-entered
 
 ## alsa-mixer
 

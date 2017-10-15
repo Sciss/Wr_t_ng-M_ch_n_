@@ -8,13 +8,20 @@
 
 ## to-do
 
-- AGC
-- relaying: order (or change cables)
-- relaying: pass audio? now i think it's better without
-- proper db-span selection
-- occasional front/back trim
-- prepare some long radio recording in case we have problems getting FM reception
-- track timeout for iteration; ensure that iteration is not re-entered
+- {OK} AGC
+- {OK} relaying: order (or change cables)
+- {no} relaying: pass audio? now i think it's better without
+- {  } proper db-span selection
+- {OK} occasional front/back trim
+- {  } prepare some long radio recording in case we have problems getting FM reception
+- {  } track timeout for iteration; ensure that iteration is not re-entered
+- {  } rota speed-lim
+- {  } withering of 'old' data (idea: maintain files parallel to phase that track age, i.e. cycles in copying;
+  then this could lead to increased bleach etc., so we flush penetrating resonances)
+- {  } modulate space-frames?
+- {  } hardware shutdown/reboot buttons
+- {  } plan for way to listen into radio to program channels
+- {  } auto-start
 
 ## alsa-mixer
 

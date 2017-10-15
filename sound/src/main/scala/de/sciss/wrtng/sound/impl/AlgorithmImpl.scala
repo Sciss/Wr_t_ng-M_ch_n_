@@ -150,7 +150,27 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
     val g = Graph {
       import de.sciss.fscape.graph._
       val inDb    = AudioFileIn(db0.f  , numChannels = 1)
-      val inApp   = AudioFileIn(fileApp, numChannels = 1)
+      val inApp0  = AudioFileIn(fileApp, numChannels = 1)
+
+      // adjust to target for 72 phon
+      val loudWin = SR.toInt
+      val inAppSl = Sliding(inApp0, size = loudWin, step = loudWin/2)
+      val loud    = Loudness(in = inAppSl, sampleRate = SR, size = loudWin)
+//      val loudAvg = {
+//        val sum = RunningSum(loud)
+//        val num = Length(sum)
+//        sum.last / num
+//      }
+      val loudMax = {
+        RunningMax(loud).last
+      }
+      val loudCorr = {
+        val tgt   = 72.0
+        val dif   = tgt - loudMax
+        ((dif.abs.pow(0.85) * dif.signum) * 1.28).dbamp.min(24)
+      }
+      val inApp   = (AudioFileIn(fileApp, numChannels = 1) * loudCorr).clip2(1.0)
+
       val cat     = if (fdLen == 0) {
         inDb ++ inApp
       } else {
@@ -235,7 +255,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
 
   private[this] val minStabDur      : Double =  10.0
   private[this] val stableDurProb   : Double =   3.0 / 100
-  private[this] val ovrBoundaryProb : Double =   4.0 / 100
+  private[this] val ovrBoundaryProb : Double =   6.0 / 100
 
   def phSelectOverwrite()(implicit tx: InTxn): Future[OverwriteInstruction] = {
     log("phSelectOverwrite()")
@@ -262,7 +282,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
 
     val fStretch  = mStretch.step()
     val useBound  = random.nextDouble() <= ovrBoundaryProb
-    val boundEnd  = useBound && random.nextBoolean()
+    val boundEnd  = useBound && random.nextDouble() > 0.667
     val jitAmt    = random.nextDouble()
 
     val fut = if (len0 > minPhaseLen) SelectOverwrite(ph0.f, ctlCfg) else txFutureSuccessful(Span(0L, 0L))

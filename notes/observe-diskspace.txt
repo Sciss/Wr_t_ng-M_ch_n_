@@ -1,0 +1,12 @@
+15-Oct-2017, 1:37h
+$ df
+Filesystem     1K-blocks    Used Available Use% Mounted on
+/dev/root       30573356 4124200  25146248  15% /
+devtmpfs          468148       0    468148   0% /dev
+tmpfs             472756   84580    388176  18% /dev/shm
+tmpfs             472756    6456    466300   2% /run
+tmpfs               5120       4      5116   1% /run/lock
+tmpfs             472756       0    472756   0% /sys/fs/cgroup
+/dev/mmcblk0p1     42030   21418     20612  51% /boot
+tmpfs              94552       0     94552   0% /run/user/1000
+

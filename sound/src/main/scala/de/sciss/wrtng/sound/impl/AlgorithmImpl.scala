@@ -356,13 +356,15 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
         insPre ++ insMid ++ insPost
 
       } else {
-        val preOut  = inPh.drop(phPos).take(insFdLen) * Line(1, 0, insFdLen).sqrt
-        val midIn   = insMid          .take(insFdLen) * Line(0, 1, insFdLen).sqrt
-        val cross0  = preOut ++ midIn
+        // we could use .sqrt for left channel and linear for right channel;
+        // for simplicity, just use linear for both
+        val preOut  = inPh.drop(phPos).take(insFdLen) * Line(1, 0, insFdLen) // .sqrt
+        val midIn   = insMid          .take(insFdLen) * Line(0, 1, insFdLen) // .sqrt
+        val cross0  = preOut + midIn
         val cross1  = insMid.drop(insFdLen).take(spliceLen - 2*insFdLen)
-        val midOut  = insMid.drop(spliceLen       - insFdLen)                * Line(1, 0, insFdLen).sqrt
-        val postIn  = inPh  .drop(instr.span.stop - insFdLen).take(insFdLen) * Line(0, 1, insFdLen).sqrt
-        val cross2  = midOut ++ postIn
+        val midOut  = insMid.drop(spliceLen       - insFdLen)                * Line(1, 0, insFdLen) // .sqrt
+        val postIn  = inPh  .drop(instr.span.stop - insFdLen).take(insFdLen) * Line(0, 1, insFdLen) // .sqrt
+        val cross2  = midOut + postIn
         val cross   = cross0 ++ cross1 ++ cross2
 
         insPre ++ cross ++ insPost

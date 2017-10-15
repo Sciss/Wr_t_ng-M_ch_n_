@@ -26,7 +26,6 @@ import de.sciss.synth.{Curve, SynthDef, SynthGraph, UGenGraph, addAfter, addToTa
 import de.sciss.wrtng.sound.Main.log
 
 import scala.concurrent.stm.Ref
-import scala.util.Random
 
 final class SoundScene(c: OSCClient) {
   type S = InMemory
@@ -319,7 +318,7 @@ final class SoundScene(c: OSCClient) {
 //    if (dotIdx0 < 0) 0 else dotIdx0
 //  }
 
-  implicit private[this] val rnd: Random = new Random
+//  implicit private[this] val rnd: Random = new Random
 
 //  private[this] val beeSynths = TArray.ofDim[Synth](12)
 //

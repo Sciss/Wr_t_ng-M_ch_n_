@@ -23,10 +23,11 @@ hi pri
 - {  } hardware shutdown/reboot buttons
 - {  } plan for way to listen into radio to program channels
 - {  } auto-start
+- {  } rota speed-lim -- now we need the opposite; we need to rotate earlier, because the process
+       takes longer to calculate; we could rotate earliest after radio-acquire has completed!
 
 lo pri
 
-- {  } rota speed-lim
 - {  } modulate space-frames?
 
 ## alsa-mixer

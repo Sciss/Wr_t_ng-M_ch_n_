@@ -14,12 +14,12 @@ final class AudioFileRef(val f: File, val numFrames: Long) {
 
   def acquire()(implicit tx: InTxn): Unit = {
     val before = useCount.getAndTransform(_ + 1)
-    require (before > 0, "Phrase was already released")
+    require (before > 0, "Audio file was already released")
   }
 
   def release()(implicit tx: InTxn): Unit = {
     val now = useCount.transformAndGet(_ - 1)
-    require (now >= 0, "Phrase was already released")
+    require (now >= 0, "Audio file was already released")
     if (now == 0) Txn.afterCommit(_ => f.delete())
   }
 }

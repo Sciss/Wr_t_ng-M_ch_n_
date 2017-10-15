@@ -31,6 +31,8 @@ package object sound {
 
   final val SR: Double = 48000.0
 
+  final val WitheringConstant: Double = 0.0078125   // = 1.0/128
+
   def secondsToFrames(secs: Double): Long = (secs * SR + 0.5).toLong
 
   def framesToSeconds(frames: Long): Double = frames / SR

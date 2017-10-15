@@ -17,7 +17,7 @@ package impl
 
 import akka.actor.ActorSystem
 import de.sciss.file._
-import de.sciss.fscape.Graph
+import de.sciss.fscape.{GE, Graph}
 import de.sciss.fscape.stream.Control
 import de.sciss.lucre.confluent.TxnRandom
 import de.sciss.lucre.stm.TxnLike
@@ -32,6 +32,7 @@ import de.sciss.wrtng.sound.Main.log
 import scala.concurrent.Future
 import scala.concurrent.stm.{InTxn, Ref, atomic}
 import scala.math.{max, min}
+import scala.util.control.NonFatal
 
 final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algorithm {
   import client.config
@@ -80,7 +81,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
 
   private[this] val dbDir         = config.baseDir / s"database${channel + 1}"
   private[this] val dbPattern     = "db%06d.aif"
-  private[this] val afSpec        = AudioFileSpec(AIFF, Int16, numChannels = 1, sampleRate = SR)
+  private[this] val dbAfSpec      = AudioFileSpec(AIFF, Int16, numChannels = 1, sampleRate = SR)
 
   private[this] val dbCount       = Ref.make[Int ]()
   private[this] val dbFile        = Ref.make[AudioFileRef]()
@@ -107,7 +108,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
     toDelete.foreach(_.delete())
     val db0 = candidate.getOrElse {
       val f   = mkDbFile(0)
-      val af  = AudioFile.openWrite(f, afSpec)
+      val af  = AudioFile.openWrite(f, dbAfSpec)
       af.close()
       f
     }
@@ -182,7 +183,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
         val post    = inApp.drop(fdLen)
         pre ++ cross ++ post
       }
-      AudioFileOut(db1F, afSpec, in = cat)
+      AudioFileOut(db1F, dbAfSpec, in = cat)
     }
 
     render[Long](ctlCfg, g) { implicit tx =>
@@ -212,11 +213,12 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
   //  Ph(r)ase  //
   ////////////////
 
-  private[this] val phDir     = config.baseDir / s"phase${channel + 1}"
-  private[this] val phPattern = "ph%06d.aif"
+  private[this] val phDir         = config.baseDir / s"phase${channel + 1}"
+  private[this] val phPattern     = "ph%06d.aif"
+  private[this] val phAfSpec      = AudioFileSpec(AIFF, Int16, numChannels = 2, sampleRate = SR)
 
-  private[this] val phCount   = Ref.make[Int ]()
-  private[this] val phFile    = Ref.make[AudioFileRef]()
+  private[this] val phCount       = Ref.make[Int]()
+  private[this] val phFile        = Ref.make[AudioFileRef]()
 
   private def mkPhFile(i: Int): File = phDir / phPattern.format(i)
 
@@ -224,12 +226,19 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
     phDir.mkdirs()
 
     val soundFiles  = phDir.children(f => f.isFile && f.name.startsWith("ph") && f.extL == "aif")
-    val candidate   = soundFiles.filter(_.length() > 0L).sorted(File.NameOrdering).lastOption
+    val candidate   = soundFiles.filter { f =>
+      try {
+        val spec = AudioFile.readSpec(f)
+        spec.numFrames > 4800 && spec.numChannels == 2
+      } catch {
+        case NonFatal(_) => false
+      }
+    } .sorted(File.NameOrdering).lastOption
     val toDelete    = soundFiles.toSet -- candidate
     toDelete.foreach(_.delete())
     val ph0 = candidate.getOrElse {
       val f   = mkPhFile(0)
-      val af  = AudioFile.openWrite(f, afSpec)
+      val af  = AudioFile.openWrite(f, phAfSpec)
       af.close()
       f
     }
@@ -335,11 +344,13 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
     val g = Graph {
       import de.sciss.fscape.graph._
       val inDb    = AudioFileIn(db0.f, numChannels = 1)
-      val inPh    = AudioFileIn(ph0.f, numChannels = 1)
+      val inDbW   = inDb  * (Seq[GE](1.0, 0.0): GE)
+      val inPh0   = AudioFileIn(ph0.f, numChannels = 2)
+      val inPh    = inPh0 + (Seq[GE](0.0, WitheringConstant): GE) // withering
 
       val insPre  = inPh.take(phPos)
       val insPost = inPh.drop(instr.span.stop)
-      val insMid  = inDb.drop(dbPos).take(spliceLen)
+      val insMid  = inDbW.drop(dbPos).take(spliceLen)
 
       val insCat  = if (insFdLen == 0) {
         insPre ++ insMid ++ insPost
@@ -347,16 +358,16 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
       } else {
         val preOut  = inPh.drop(phPos).take(insFdLen) * Line(1, 0, insFdLen).sqrt
         val midIn   = insMid          .take(insFdLen) * Line(0, 1, insFdLen).sqrt
-        val cross0  = (preOut ++ midIn).clip2(1.0)
+        val cross0  = preOut ++ midIn
         val cross1  = insMid.drop(insFdLen).take(spliceLen - 2*insFdLen)
         val midOut  = insMid.drop(spliceLen       - insFdLen)                * Line(1, 0, insFdLen).sqrt
         val postIn  = inPh  .drop(instr.span.stop - insFdLen).take(insFdLen) * Line(0, 1, insFdLen).sqrt
-        val cross2  = (midOut ++ postIn).clip2(1.0)
+        val cross2  = midOut ++ postIn
         val cross   = cross0 ++ cross1 ++ cross2
 
         insPre ++ cross ++ insPost
       }
-      AudioFileOut(ph1F, afSpec, in = insCat)
+      AudioFileOut(ph1F, phAfSpec, in = insCat.clip2(1.0))
 
       val remPre  = inDb.take(dbPos)
       val remPost = inDb.drop(dbSpan.start + spliceLen)
@@ -367,7 +378,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
       } else {
         ???
       }
-      AudioFileOut(db1F, afSpec, in = remCat)
+      AudioFileOut(db1F, dbAfSpec, in = remCat)
     }
 
     render[Unit](ctlCfg, g) { implicit tx =>

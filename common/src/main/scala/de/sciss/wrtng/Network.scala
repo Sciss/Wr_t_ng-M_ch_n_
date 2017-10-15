@@ -41,7 +41,7 @@ object Network {
   )
 
   final val soundDotSeq: Vec[Int] =
-    Vector(15, 17, 18, 19, 25)
+    Vector(14, 15, 17, 18, 19, 25)
 
   final val radioDot: Int = 23
 

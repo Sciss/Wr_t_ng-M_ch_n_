@@ -31,6 +31,7 @@ object SelectOverwrite {
     val pathIn  = args.headOption.getOrElse(
       "/data/IEM/SoSe2017/DigitaleVerfahren2017/support/Session02_170315/beyond_the_wall_of_sleep_s1.aif"
     )
+    println(s"Path: $pathIn")
     val fileIn  = file(pathIn)
     // val fileOut = file("/data/temp/corr.aif")
     run(fileIn = fileIn /* , fileOut = fileOut */)
@@ -38,25 +39,29 @@ object SelectOverwrite {
 
   final case class SelectPart(startFrame: GE, stopFrame: GE)
 
-  def selectPart(fileIn: File): SelectPart = {
-    val fftSize   : Int     = 1024 // 2048
-    val stepDiv   : Int     = 4
-    val numMel    : Int     = 42
-    val numCoef   : Int     = 21
-    val sideDur   : Double  = 0.25
-    val spaceDur  : Double  = 1.5 // 0.5
-    val minFreq   : Double  = 100
-    val maxFreq   : Double  = 14000
+  private[this] val fftSize   : Int     = 1024 // 2048
+  private[this] val stepDiv   : Int     = 4
+  private[this] val numMel    : Int     = 42
+  private[this] val numCoef   : Int     = 21
+  private[this] val sideDur   : Double  = 0.25
+  private[this] val spaceDur  : Double  = 1.5 // 0.5
+  private[this] val minFreq   : Double  = 100
+  private[this] val maxFreq   : Double  = 14000
+  private[this] val witherTgt : Double  = 0.0012 / 30   // a threshold of 0.0012 in 30 iterations
 
+  def selectPart(fileIn: File): SelectPart = {
     import de.sciss.fscape.graph._
     val specIn      = AudioFile.readSpec(fileIn)
     import specIn.{numChannels, numFrames, sampleRate}
+    require(numChannels == 2) // left channel is sound signal, right channel is 'withering'
+
     def mkIn()      = AudioFileIn(fileIn, numChannels = numChannels)
-    val in          = mkIn()
+    val in          = mkIn() \ 0
+    val inWither    = mkIn() \ 1    // separate UGen so we don't run into trouble wrt to buffering
 
     // XXX TODO --- enabling this prevents some hanging. but why?
     // if (Main.showLog) {
-      in.poll(0, s"SelectOverwrite().fscape")
+      in.poll(0, "ovr-fsc")
     // }
 
     val stepSize    = fftSize / stepDiv
@@ -69,8 +74,8 @@ object SelectOverwrite {
     val numCov      = numSteps - (2 * sideLen)
     val numCov1     = numSteps - sideLen - spaceLen
 
-    val inMono      = if (numChannels == 1) in else ChannelProxy(in, 0) + ChannelProxy(in, 1) // XXX TODO --- missing Mix
-    val lap         = Sliding (inMono, fftSize, stepSize) * GenWindow(fftSize, GenWindow.Hann)
+//    val inMono      = if (numChannels == 1) in else ChannelProxy(in, 0) + ChannelProxy(in, 1)
+    val lap         = Sliding (in       , fftSize, stepSize) * GenWindow(fftSize, GenWindow.Hann)
     val fft         = Real1FFT(lap, fftSize, mode = 2)
     val mag         = fft.complex.mag
     val mel         = MelFilter(mag, fftSize/2, bands = numMel,
@@ -81,19 +86,26 @@ object SelectOverwrite {
     val mfccSlid    = Sliding(mfcc, size = covSize, step = numCoef)
     val mfccSlidT   = mfccSlid.drop(covSize)
     val el          = BufferMemory(mfccSlid, size = covSize)
-    val cov0        = Pearson(el, mfccSlidT, covSize)
-    val cov         = cov0.take(numCov1)
+    val cov         = Pearson(el, mfccSlidT, covSize)
 
     val covNeg      = -cov + (1: GE)  // N.B. not `1 - cov` because binary-op-ugen stops when first input stops
-    val covMin0     = DetectLocalMax(covNeg, size = spaceLen)
-    //      Length(covMin0).poll(0, "covMin0.length")
-    //      println(s"numCov: $numCov")
+    val wither0     = ResizeWindow(inWither, size = stepSize, start = 0, stop = -(stepSize - 1))
+    val wither      = wither0 * (witherTgt / WitheringConstant)
+
+    val key         = (covNeg + wither).take(numCov1)
+//    Length(BufferDisk(covNeg)).poll(0, "covNeg.length")
+//    Length(BufferDisk(wither)).poll(0, "wither.length")
+//    Length(BufferDisk(key   )).poll(0, "key   .length")
+
+    val covMin0     = DetectLocalMax(key, size = spaceLen)
     val covMin      = covMin0.take(numCov)  // XXX TODO --- bug in DetectLocalMax?
 
-    val keysEl      = covNeg.elastic()
+    val keysEl      = key.elastic()
     val values      = Frames(keysEl) - 1
     val keysG       = FilterSeq(keysEl, covMin)
     val valuesG     = FilterSeq(values, covMin)
+
+//    RunningMax(keysG).last.poll(0, "MAX SCHNUCK")
 
     val top         = PriorityQueue(keysG, valuesG, size = 1)    // lowest covariances mapped to frames
     val startF      = top * stepSize

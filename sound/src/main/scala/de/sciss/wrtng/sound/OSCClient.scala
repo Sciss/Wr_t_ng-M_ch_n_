@@ -24,7 +24,7 @@ import de.sciss.osc.UDP
 import de.sciss.synth.io.AudioFile
 import de.sciss.wrtng.sound.Main.log
 
-import scala.concurrent.stm.{InTxn, Ref, atomic, Txn => STxn}
+import scala.concurrent.stm.{InTxn, Ref, Txn => STxn}
 import scala.concurrent.{Future, Promise}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}

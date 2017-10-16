@@ -20,7 +20,7 @@ import de.sciss.kollflitz.Vec
 import de.sciss.osc
 import de.sciss.osc.UDP
 
-import scala.concurrent.stm.{InTxn, Ref, Txn, atomic}
+import scala.concurrent.stm.{InTxn, Ref, Txn}
 import scala.util.Try
 import scala.util.control.NonFatal
 
@@ -72,7 +72,7 @@ abstract class OSCClientLike {
   }
 
   final protected def oscFallback(p: osc.Packet, sender: SocketAddress): Unit = {
-    val wasHandled = atomic { implicit tx =>
+    val wasHandled = Util.atomic(main) { implicit tx =>
       val qsIn      = queries()
       val qOpt      = qsIn.find(_.handle(sender, p))
       val _handled  = qOpt.isDefined

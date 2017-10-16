@@ -13,6 +13,7 @@
 
 package de.sciss.wrtng
 
+import scala.concurrent.stm.{InTxn, Txn, TxnExecutor}
 import scala.util.Random
 
 object Util {
@@ -132,4 +133,17 @@ object Util {
     }
     strBuf.result()
   }
+
+  private[this] val txnExec = TxnExecutor.defaultAtomic
+
+  def atomic[A](main: MainLike)(fun: InTxn => A): A = {
+    Txn.findCurrent.foreach { _ =>
+      val ex = new Exception
+      val s = Util.formatException(ex)
+      val msg = if (s.length < 512) s else s.substring(0, 512)
+      main.log(s"WARNING: nested transaction: $msg")
+    }
+    txnExec(fun)
+  }
+
 }

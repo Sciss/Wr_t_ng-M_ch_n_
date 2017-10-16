@@ -19,7 +19,7 @@ import de.sciss.lucre.confluent.TxnRandom
 import de.sciss.span.Span
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.stm.{InTxn, Ref, Txn, TxnLocal, atomic}
+import scala.concurrent.stm.{InTxn, Ref, Txn, TxnExecutor}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.Try
 import scala.util.control.NonFatal
@@ -107,6 +107,24 @@ package object sound {
     val p = Promise[A]()
     Txn.afterCommit(_ => p.complete(Try(value)))
     p.future
+  }
+
+  def txFutureFailed[A](ex: Exception)(implicit tx: InTxn): Future[A] = {
+    val p = Promise[A]()
+    Txn.afterCommit(_ => p.failure(ex))
+    p.future
+  }
+
+  private[this] val txnExec = TxnExecutor.defaultAtomic
+
+  def atomic[A](fun: InTxn => A): A = {
+    Txn.findCurrent.foreach { _ =>
+      val ex = new Exception
+      val s = Util.formatException(ex)
+      val msg = if (s.length < 512) s else s.substring(0, 512)
+      Main.log(s"WARNING: nested transaction: $msg")
+    }
+    txnExec(fun)
   }
 
   type TxRnd = TxnRandom[InTxn]

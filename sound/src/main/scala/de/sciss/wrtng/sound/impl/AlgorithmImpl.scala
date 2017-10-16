@@ -30,7 +30,7 @@ import de.sciss.synth.io.{AudioFile, AudioFileSpec}
 import de.sciss.wrtng.sound.Main.log
 
 import scala.concurrent.Future
-import scala.concurrent.stm.{InTxn, Ref, atomic}
+import scala.concurrent.stm.{InTxn, Ref}
 import scala.math.{max, min}
 import scala.util.control.NonFatal
 
@@ -101,7 +101,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
       // relay keeps going above, independent of rendering
       val msg = "state still busy"
       log(s"playLogic() - WARNING: $msg")
-      Future.failed(new Exception(msg))
+      txFutureFailed(new Exception(msg))
 
     } else {
 

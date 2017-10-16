@@ -36,7 +36,9 @@ final case class Config(
                          gqrxConfig         : String        = "wrtng.conf",
                          gqrxTCPPort        : Int           = 7356,
                          gqrxRecDir         : File          = userHome / "Music",
-                         offline            : Option[File]  = None
+                         offline            : Option[File]  = None,
+                         autoStart          : Boolean       = true,
+                         minSoundNodes      : Int           = 6
                        )
   extends ConfigLike {
 

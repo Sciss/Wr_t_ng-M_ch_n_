@@ -19,8 +19,9 @@ import java.net.{InetSocketAddress, SocketAddress}
 import de.sciss.file._
 import de.sciss.osc
 import de.sciss.osc.UDP
+import de.sciss.wrtng.radio.Main.log
 
-import scala.concurrent.stm.{InTxn, TMap, atomic}
+import scala.concurrent.stm.{InTxn, Ref, TMap, atomic}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
@@ -117,6 +118,11 @@ final class OSCClient(override val config: Config, val dot: Int,
         disposeRadioUpdate(uid)
       }
 
+    case Network.OscIterate(_, _) =>
+      atomic { implicit tx =>
+        resetSoundTimeout()
+      }
+
     case Network.OscSetVolume(_) => // ignore volume
 
     case osc.Message("/test_rec", id: Int, dur: Float) =>
@@ -134,5 +140,50 @@ final class OSCClient(override val config: Config, val dot: Int,
 
     case _ =>
       oscFallback(p, sender)
+  }
+
+  private[this] var checkAutoStart = config.autoStart
+
+  override protected def aliveUpdated(): Unit =
+    if (checkAutoStart)
+      atomic { implicit tx =>
+        autoStartOne()
+      }
+
+  private def autoStartOne()(implicit tx: InTxn): Unit = {
+    val aliveSoundNodes = filterAlive(Network.soundSocketSeq)
+    if (aliveSoundNodes.nonEmpty && aliveSoundNodes.size >= config.minSoundNodes) {
+      val idx = (math.random() * aliveSoundNodes.size).toInt
+      val target = aliveSoundNodes(idx)
+      log(s"auto-start: $target")
+      sendTxn(target, Network.OscIterate(ch = 0, relay = true))
+      checkAutoStart = false
+    }
+    resetSoundTimeout()
+  }
+
+  private[this] val timeoutRef = Ref(Option.empty[Task])
+  private[this] val timeoutCnt = Ref(0)
+
+  private def resetSoundTimeout()(implicit tx: InTxn): Unit = {
+    val task = scheduleTxn(120000L) { implicit tx =>
+      log("timeout! we've been waiting too long for a sound to come around and say 'hi'")
+      val cnt = timeoutCnt.transformAndGet(_ + 1)
+      if (cnt < 3) {
+        autoStartOne()
+      } else {
+        rebootAll()
+      }
+    }
+
+    timeoutRef.swap(Some(task)).foreach(_.cancel())
+  }
+
+  private def rebootAll()(implicit tx: InTxn): Unit = {
+    log("ran out of patience; rebooting all sound nodes!")
+    Network.soundSocketSeq.foreach { target =>
+      sendTxn(target, Network.OscReboot)
+    }
+    Util.reboot()
   }
 }

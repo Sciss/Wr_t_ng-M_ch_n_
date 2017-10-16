@@ -36,6 +36,10 @@ object Main extends MainLike {
         .text (s"Instance is laptop (default: ${default.isLaptop})")
         .action { (_, c) => c.copy(isLaptop = true) }
 
+      opt[Unit] ("no-auto-start")
+        .text ("Turn off auto-start.")
+        .action { (_, c) => c.copy(autoStart = false) }
+
       opt[Unit] ("keep-energy")
         .text ("Do not turn off energy saving")
         .action { (_, c) => c.copy(disableEnergySaving = false) }
@@ -83,6 +87,10 @@ object Main extends MainLike {
         .text (s"Directory for sounds recorded by gqrx (default: ${default.gqrxRecDir})")
         .validate { v => if (v.isDirectory) success else failure(s"Not a directory: $v") }
         .action { (v, c) => c.copy(gqrxRecDir = v) }
+
+      opt[Int] ("min-sound-nodes")
+        .text (s"Minimum number of sound nodes for auto-start (default: ${default.minSoundNodes})")
+        .action { (v, c) => c.copy(minSoundNodes = v) }
     }
     p.parse(args, default).fold(sys.exit(1)) { config =>
       val localSocketAddress = Network.initConfig(config, this)

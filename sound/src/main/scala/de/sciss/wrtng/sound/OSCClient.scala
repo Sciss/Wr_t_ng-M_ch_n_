@@ -51,7 +51,6 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
                       val radioSocket: SocketAddress)
   extends OSCClientLike {
 
-//  val relay: RelayPins  = RelayPins.map(dot)
   val scene     : SoundScene  = new SoundScene(this)
   val algorithm1: Algorithm   = Algorithm(this, channel = 0)
   val algorithm2: Algorithm   = Algorithm(this, channel = 1)
@@ -140,7 +139,6 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
       val algorithm = algorithms(ch)
       val fut = atomic { itx =>
         implicit val tx: Txn = Txn.wrap(itx)
-//        algorithm.playAndIterate()
         algorithm.playLogic(relay = relay)
       }
       fut.onComplete {
@@ -150,13 +148,12 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
           log(s"iterate($ch) failed: ${exceptionToOSC(ex)}")
           sendNow(osc.Message("/error", Network.OscIterate.Name, exceptionToOSC(ex)), sender)
       }
-      // if (relay) fut.onComplete(_ => relayIterate(ch))
+
     } catch {
       case NonFatal(ex) =>
         ex.printStackTrace()
         log(s"iterate($ch) ERROR: ${exceptionToOSC(ex)}")
         sendNow(osc.Message("/error", Network.OscIterate.Name, exceptionToOSC(ex)), sender)
-        // if (relay) relayIterate(ch)
     }
   }
 
@@ -186,7 +183,9 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
 //      }
     }
 
-    sendNow(Network.OscIterate(ch = nextCh, relay = true), target)
+    val m = Network.OscIterate(ch = nextCh, relay = true)
+    sendNow(m, target)
+    sendNow(m, radioSocket)   // signalise algorithm is up and healthy
   }
 
   def queryRadioRec(dur: Float)(implicit tx: InTxn): Future[AudioFileRef] = {

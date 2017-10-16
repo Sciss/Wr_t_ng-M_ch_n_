@@ -86,6 +86,7 @@ abstract class OSCClientLike {
         val now   = System.currentTimeMillis()
         val death = now + Network.DeathPeriodMillis
         alive = alive.filter(_._2 < death) + (sender -> now)
+        aliveUpdated()
 
       case Network.OscUpdateSet (uid, off, bytes) =>
         updater.fold[Unit] {
@@ -201,4 +202,6 @@ abstract class OSCClientLike {
     val s = Util.formatException(ex)
     if (s.length < 512) s else s.substring(0, 512)
   }
+
+  protected def aliveUpdated(): Unit = ()
 }

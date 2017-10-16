@@ -40,13 +40,17 @@ object Main extends MainLike {
         .text (s"Instance is laptop (default ${default.isLaptop})")
         .action { (_, c) => c.copy(isLaptop = true) }
 
+      opt[Unit] ("keep-phase")
+        .text (s"Keep working from existing phase file (default ${default.keepPhase})")
+        .action { (_, c) => c.copy(keepPhase = true) }
+
       opt[Unit] ("keep-energy")
         .text ("Do not turn off energy saving")
-        .action   { (_, c) => c.copy(disableEnergySaving = false) }
+        .action { (_, c) => c.copy(disableEnergySaving = false) }
 
       opt[Unit] ("no-qjackctl")
         .text ("Do not launch QJackCtl")
-        .action   { (_, c) => c.copy(qjLaunch = false) }
+        .action { (_, c) => c.copy(qjLaunch = false) }
 
       opt[String]("qjackctl-preset")
         .text (s"QJackCtl preset name (default: ${default.qjPreset})")

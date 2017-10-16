@@ -32,7 +32,8 @@ final case class Config(
                          log                  : Boolean       = false,
                          alsaDeviceIndex      : Int           = 1,
                          alsaVolumeName       : String        = "Speaker",
-                         alsaVolumeValue      : String        = "25"
+                         alsaVolumeValue      : String        = "25",
+                         keepPhase            : Boolean       = false
 //                         keypad              : Boolean       = false
                        )
   extends ConfigLike

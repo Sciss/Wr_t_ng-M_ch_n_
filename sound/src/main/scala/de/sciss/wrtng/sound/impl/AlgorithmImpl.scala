@@ -90,7 +90,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
 
   private def iterateSafe(dur: Double, relay: Boolean)(implicit tx: InTxn): Future[Unit] = {
     val entryOff  = playEntryMotion.step()
-    val dly       = math.max(1.0, dur * entryOff)
+    val dly       = math.max(4.0, dur * entryOff)
     val dlyMS     = (dly * 1000).toLong
     if (relay) client.scheduleTxn(dlyMS) { implicit tx =>
       client.relayIterate(thisCh = channel)
@@ -163,7 +163,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
   private[this] val dbFile        = Ref.make[AudioFileRef]()
 
   private[this] val dbTargetLen   = (SR * 180).toLong
-  private[this] val maxCaptureLen = (SR *  20).toLong
+  private[this] val maxCaptureLen = (SR *  12).toLong  // 20
   private[this] val minCaptureLen = (SR *   4).toLong
 
   private[this] val ctlCfg: Control.Config = {
@@ -302,7 +302,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
     phDir.mkdirs()
 
     val soundFiles  = phDir.children(f => f.isFile && f.name.startsWith("ph") && f.extL == "aif")
-    val candidate   = soundFiles.filter { f =>
+    val candidate   = if (!config.keepPhase) None else soundFiles.filter { f =>
       try {
         val spec = AudioFile.readSpec(f)
         spec.numFrames > 4800 && spec.numChannels == 2

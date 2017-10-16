@@ -24,7 +24,9 @@ hi pri
 - {  } hardware shutdown/reboot buttons; volume control?
 - {  } plan for way to listen into radio to program channels
 - {  } auto-start
-- {  } quick level and channel check using noise 
+- {  } quick level and channel check using noise
+- {  } observe if we still have RollbackError -- those need to be caught in the `received` loop
+       because the receiver doesn't do that (falls through `NonFatal(_)`).
 
 mid pri
 

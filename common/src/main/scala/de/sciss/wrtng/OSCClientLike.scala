@@ -130,6 +130,10 @@ abstract class OSCClientLike {
       case Network.OscQueryVersion =>
         transmitter.send(Network.OscReplyVersion(main.fullVersion), sender)
 
+      case Network.OscLogEnable(onOff) =>
+        main.showLog = onOff
+        main.remoteLogging(if (onOff) Some(sendRemoteLog(sender, _)) else None)
+
       case osc.Message("/error"        , _ @ _*) =>
       case osc.Message("/inject-abort" , _ @ _*) =>
       case osc.Message("/inject-commit", _ @ _*) =>
@@ -143,6 +147,9 @@ abstract class OSCClientLike {
         transmitter.send(osc.Message("/error", "unknown packet" +: args: _*), sender)
     }
   }
+
+  private def sendRemoteLog(target: SocketAddress, text: String): Unit =
+    sendNow(Network.OscLog(text), target)
 
   /** Sub-classes may override this */
   protected def socketSeqCtl: Vec[SocketAddress] = Network.socketSeqCtl
@@ -169,14 +176,15 @@ abstract class OSCClientLike {
       sendNow(p, target)
     }
 
-  final def dumpOSC(): Unit = {
-    transmitter.dump(filter = Network.oscDumpFilter)
-    receiver   .dump(filter = Network.oscDumpFilter)
+  final def dumpOSC(onOff: Boolean): Unit = {
+    val mode = if (onOff) osc.Dump.Text else osc.Dump.Off
+    transmitter.dump(mode, filter = Network.oscDumpFilter)
+    receiver   .dump(mode, filter = Network.oscDumpFilter)
   }
 
   def init(): this.type = {
     receiver.action = oscReceived
-    if (config.dumpOSC) dumpOSC()
+    if (config.dumpOSC) dumpOSC(onOff = true)
     transmitter .connect()
     receiver    .connect()
     this
@@ -189,7 +197,7 @@ abstract class OSCClientLike {
     (i.toLong * 1000) + dot
   }
 
-  final protected def exceptionToOSC(ex: Throwable): String = {
+  final def exceptionToOSC(ex: Throwable): String = {
     val s = Util.formatException(ex)
     if (s.length < 512) s else s.substring(0, 512)
   }

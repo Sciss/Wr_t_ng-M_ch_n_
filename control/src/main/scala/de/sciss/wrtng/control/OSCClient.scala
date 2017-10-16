@@ -81,6 +81,9 @@ final class OSCClient(val config      : Config,
   }
 
   def oscReceived(p: osc.Packet, sender: SocketAddress): Unit = p match {
+    case Network.OscLog(text) =>
+      println(s"[$sender] $text")
+
     case Network.OscUpdateGet(uid, off) =>
       mapUIDToUpdaterSync.synchronized {
         mapUIDToUpdater.get(uid).fold[Unit] {
@@ -150,6 +153,8 @@ final class OSCClient(val config      : Config,
       if (!success) println("Failed to test channel!")
 
     case _ =>
+      // oscFallback(p, sender)
+
       Console.err.println(s"Ignoring unknown OSC packet $p")
     // N.B.: Do _not_ reply, because we may create an infinite growing loop
     // tx.send(osc.Message("/error", "unknown packet", p), sender)

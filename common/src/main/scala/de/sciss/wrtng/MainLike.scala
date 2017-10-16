@@ -18,8 +18,8 @@ import java.text.SimpleDateFormat
 import java.util.{Date, Locale}
 
 import scala.annotation.elidable
-import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
+import scala.util.{Failure, Success, Try}
 
 trait MainLike {
   protected def pkgLast: String
@@ -71,7 +71,7 @@ trait MainLike {
     ((Right(()): Either[String, Unit]) /: vs) { case (e, v) =>
       e.flatMap { _ =>
         val eth = if (useDot) parseSocketDot(v)
-        else        parseSocket   (v)
+        else                  parseSocket   (v)
         eth.map(_ => ()) }
     }
 
@@ -79,6 +79,14 @@ trait MainLike {
 
   private[this] lazy val logHeader = new SimpleDateFormat(s"[HH:mm''ss.SSS] '$pkgLast' - ", Locale.US)
 
+  private[this] var remoteLogFun = Option.empty[String => Unit]
+
   @elidable(elidable.CONFIG) def log(what: => String): Unit =
-    if (showLog) println(logHeader.format(new Date()) + what)
+    if (showLog) {
+      val msg = logHeader.format(new Date()) + what
+      println(msg)
+      if (remoteLogFun.isDefined) remoteLogFun.foreach(_.apply(msg))
+    }
+
+  def remoteLogging(fun: Option[String => Unit]): Unit = remoteLogFun = fun
 }

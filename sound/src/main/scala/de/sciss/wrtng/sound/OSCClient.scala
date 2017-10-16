@@ -93,24 +93,7 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
       }
 
     case Network.OscIterate(ch, relay) =>
-      try {
-        val algorithm = algorithms(ch)
-        val fut = atomic { itx =>
-          implicit val tx: Txn = Txn.wrap(itx)
-          algorithm.playAndIterate()
-        }
-        fut.onComplete {
-          case Success(_)   => sendNow(osc.Message("/done" , Network.OscIterate.Name), sender)
-          case Failure(ex)  => sendNow(osc.Message("/error", Network.OscIterate.Name, exceptionToOSC(ex)), sender)
-        }
-        if (relay) fut.onComplete(_ => relayIterate(ch))
-      } catch {
-        case NonFatal(ex) =>
-          println("The fuck!?")
-          ex.printStackTrace()
-          sendNow(osc.Message("/error", Network.OscIterate.Name, exceptionToOSC(ex)), sender)
-          if (relay) relayIterate(ch)
-      }
+      iterate(ch = ch, relay = relay, sender = sender)
 
     case Network.OscSetVolume(amp) =>
       scene.setMasterVolume(amp)
@@ -152,16 +135,41 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
       oscFallback(p, sender)
   }
 
-  def relayIterate(ch: Int): Unit = {
-    val nextCh = 1 - ch
-    val target = if (ch == 0) {
-      log(s"relayIterate($ch) -> $nextCh (self)")
+  def iterate(ch: Int, relay: Boolean, sender: SocketAddress): Unit = {
+    try {
+      val algorithm = algorithms(ch)
+      val fut = atomic { itx =>
+        implicit val tx: Txn = Txn.wrap(itx)
+//        algorithm.playAndIterate()
+        algorithm.playLogic(relay = relay)
+      }
+      fut.onComplete {
+        case Success(_)   =>
+          sendNow(osc.Message("/done" , Network.OscIterate.Name), sender)
+        case Failure(ex)  =>
+          log(s"iterate($ch) failed: ${exceptionToOSC(ex)}")
+          sendNow(osc.Message("/error", Network.OscIterate.Name, exceptionToOSC(ex)), sender)
+      }
+      // if (relay) fut.onComplete(_ => relayIterate(ch))
+    } catch {
+      case NonFatal(ex) =>
+        ex.printStackTrace()
+        log(s"iterate($ch) ERROR: ${exceptionToOSC(ex)}")
+        sendNow(osc.Message("/error", Network.OscIterate.Name, exceptionToOSC(ex)), sender)
+        // if (relay) relayIterate(ch)
+    }
+  }
+
+  def relayIterate(thisCh: Int): Unit = {
+    val nextCh = 1 - thisCh
+    val target = if (thisCh == 0) {
+      log(s"relayIterate($thisCh) -> $nextCh (self)")
       transmitter.localSocketAddress
     } else {
       val targets = filterAlive(Network.soundSocketSeq)
-      log(s"relayIterate($ch) -> ${targets.size} candidates")
+      log(s"relayIterate($thisCh) -> ${targets.size} candidates")
       if (targets.isEmpty) {
-        log(s"relayIterate($ch) -> $nextCh (self)")
+        log(s"relayIterate($thisCh) -> $nextCh (self)")
         transmitter.localSocketAddress
       }
       else {
@@ -169,7 +177,7 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
         val myIdx   = dots.indexOf(dot)
         val nextIdx = (myIdx + 1) % targets.size
         val res     = targets(nextIdx)
-        log(s"relayIterate($ch) -> $nextCh ($res)")
+        log(s"relayIterate($thisCh) -> $nextCh ($res)")
         res
       }
 

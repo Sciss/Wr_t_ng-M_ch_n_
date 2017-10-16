@@ -17,14 +17,18 @@
 
 hi pri
 
-- {  } proper db-span selection
+- {OK} track timeout for iteration; ensure that iteration is not re-entered
+- {OK} rota speed-lim -- now we need the opposite; we need to rotate earlier, because the process
+       takes longer to calculate; we could rotate earliest after radio-acquire has completed!
 - {  } prepare some long radio recording in case we have problems getting FM reception
-- {  } track timeout for iteration; ensure that iteration is not re-entered
-- {  } hardware shutdown/reboot buttons
+- {  } hardware shutdown/reboot buttons; volume control?
 - {  } plan for way to listen into radio to program channels
 - {  } auto-start
-- {  } rota speed-lim -- now we need the opposite; we need to rotate earlier, because the process
-       takes longer to calculate; we could rotate earliest after radio-acquire has completed!
+- {  } quick level and channel check using noise 
+
+mid pri
+
+- {  } proper db-span selection
 
 lo pri
 

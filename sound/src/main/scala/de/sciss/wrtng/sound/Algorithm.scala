@@ -32,7 +32,12 @@ trait Algorithm {
 
   def channel: Int
 
-  def iterate()(implicit tx: InTxn): Future[Unit]
+  def iterate(iterId: Int)(implicit tx: InTxn): Future[Unit]
+
+  /** @return the duration in seconds of the snippet being played */
+  def play()(implicit tx: Txn): Double
 
   def playAndIterate()(implicit tx: Txn): Future[Unit]
+
+  def playLogic(relay: Boolean)(implicit tx: Txn): Future[Unit]
 }

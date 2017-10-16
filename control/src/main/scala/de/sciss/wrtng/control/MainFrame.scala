@@ -273,10 +273,20 @@ class MainFrame(c: OSCClient) {
   gSound.add(ggSoundPing    .peer)
   gSound.add(ggSoundNoise   .peer)
 
-  private[this] val ggBees = ToggleButton("Bees", init = true) { onOff =>
+//  private[this] val ggBees = ToggleButton("Bees", init = true) { onOff =>
+//    selection.foreach { instance =>
+//      c.sendNow(osc.Message("/bees", onOff), instance.socketAddress)
+//    }
+//  }
+
+  private[this] val ggLog = ToggleButton("Remote Log", init = false) { onOff =>
     selection.foreach { instance =>
-      c.sendNow(osc.Message("/bees", onOff), instance.socketAddress)
+      c.sendNow(Network.OscLogEnable(onOff), instance.socketAddress)
     }
+  }
+
+  private[this] val ggDumpOSC = ToggleButton("Dump OSC", init = c.config.dumpOSC) { onOff =>
+    c.dumpOSC(onOff = onOff)
   }
 
   private def selectedChanged(): Unit = {
@@ -310,9 +320,9 @@ class MainFrame(c: OSCClient) {
   timRepeat.setRepeats(false)
 
   private[this] val pButtons1 = new FlowPanel(ggRefresh, ggUpdate, ggReboot, ggShutdown, ggTestRec)
-  private[this] val pButtons2 = new FlowPanel(ggShell, ggServerInfo, ggIter1, ggIter2, ggIter3)
+  private[this] val pButtons2 = new FlowPanel(ggShell, ggServerInfo, ggIter1, ggIter2, ggIter3, ggLog)
   private[this] val pButtons3 = new FlowPanel(
-    ggBees, new Label("Sound:"), ggSoundOff, ggSoundPing, ggSoundNoise, ggRepeat)
+    ggDumpOSC, new Label("Sound:"), ggSoundOff, ggSoundPing, ggSoundNoise, ggRepeat)
   private[this] val pChannels = new FlowPanel(Seq.tabulate(2 /* 12 */) { ch =>
     Button((ch + 1).toString) {
       mkTest(ch)

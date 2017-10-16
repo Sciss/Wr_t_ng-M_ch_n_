@@ -252,6 +252,28 @@ object Network {
     }
   }
 
+  object OscLogEnable {
+    private[this] val Name = "/log-enable"
+
+    def apply(onOff: Boolean): osc.Message = osc.Message(Name, onOff)
+
+    def unapply(p: osc.Packet): Option[Boolean] = p match {
+      case osc.Message(Name, onOff: Boolean) => Some(onOff)
+      case _ => None
+    }
+  }
+
+  object OscLog {
+    private[this] val Name = "/log"
+
+    def apply(text: String): osc.Message = osc.Message(Name, text)
+
+    def unapply(p: osc.Packet): Option[String] = p match {
+      case osc.Message(Name, text: String) => Some(text)
+      case _ => None
+    }
+  }
+
   final val OscShutdown : osc.Message = osc.Message("/shutdown" )
   final val OscReboot   : osc.Message = osc.Message("/reboot"   )
   final val OscHeart    : osc.Message = osc.Message("/heart"    )

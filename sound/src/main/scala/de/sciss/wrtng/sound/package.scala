@@ -19,7 +19,7 @@ import de.sciss.lucre.confluent.TxnRandom
 import de.sciss.span.Span
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.stm.{InTxn, Txn, atomic}
+import scala.concurrent.stm.{InTxn, Ref, Txn, TxnLocal, atomic}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.Try
 import scala.util.control.NonFatal
@@ -111,14 +111,24 @@ package object sound {
 
   type TxRnd = TxnRandom[InTxn]
 
+  private[this] val currentRendering = Ref(Option.empty[Control])
+
+  def cancelRendering()(implicit tx: InTxn): Unit = {
+    currentRendering.swap(None).foreach(ctl => Txn.afterCommit(_ => ctl.cancel()))
+  }
+
   def render[A](ctlCfg: Control.Config, g: Graph)(done: InTxn => A)(implicit tx: InTxn): Future[A] = {
-    val p = Promise[A]()
+    val p   = Promise[A]()
+    val ctl = Control(ctlCfg)
+    currentRendering() = Some(ctl)
     Txn.afterCommit { _ =>
       try {
-        val ctl = Control(ctlCfg)
         ctl.run(g)
         val futF = ctl.status.map { _ =>
-          atomic(done)
+          atomic { implicit tx =>
+            if (currentRendering().contains(ctl)) currentRendering() = None
+            done(tx)
+          }
         }
         p.completeWith(futF)
       } catch {

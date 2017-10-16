@@ -17,8 +17,8 @@ package impl
 
 import akka.actor.ActorSystem
 import de.sciss.file._
-import de.sciss.fscape.{GE, Graph}
 import de.sciss.fscape.stream.Control
+import de.sciss.fscape.{GE, Graph}
 import de.sciss.lucre.confluent.TxnRandom
 import de.sciss.lucre.stm.TxnLike
 import de.sciss.lucre.synth.Txn
@@ -37,13 +37,15 @@ import scala.util.control.NonFatal
 final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algorithm {
   import client.config
 
+  private[this] implicit val random: TxRnd = TxnRandom.plain()
+
   def init(): this.type = {
     dbInit()
     phInit()
     this
   }
 
-  def playAndIterate()(implicit tx: Txn): Future[Unit] = {
+  def play()(implicit tx: Txn): Double = {
     import TxnLike.peer
 
     val ph0 = phFile()
@@ -54,12 +56,88 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
       val start   = 0L
       val stop    = ph0.numFrames
       client.scene.play(ph0, ch = channel, start = start, stop = stop, fadeIn = fadeIn, fadeOut = fadeOut)
+      ph0.numFrames / SR
+    } else {
+      0.0
     }
-    iterate()
   }
 
-  def iterate()(implicit tx: InTxn): Future[Unit] = {
-    log("iterate()")
+  // factors between zero and one
+  private[this] val playEntryMotion: Motion = Motion.walk(lo = 0.5, hi = 1.0, maxStep = 0.05)
+
+  private[this] val stateCnt  = Ref(0)
+  private[this] val NoState   = new State(-1)
+  private[this] val stateRef  = Ref[State](NoState)
+
+  private final class State(val id: Int) {
+    def isDefined: Boolean = id >= 0
+  }
+
+  def playLogic(relay: Boolean)(implicit tx: Txn): Future[Unit] = {
+    import TxnLike.peer
+    val dur = playSafe()
+    iterateSafe(dur = dur, relay = relay)
+  }
+
+  private def playSafe()(implicit tx: Txn): Double =
+    try {
+      play()
+    } catch {
+      case NonFatal(ex) =>
+        log(s"playLogic() - play(): ERROR: ${client.exceptionToOSC(ex)}")
+      0.0
+    }
+
+  private def iterateSafe(dur: Double, relay: Boolean)(implicit tx: InTxn): Future[Unit] = {
+    val entryOff  = playEntryMotion.step()
+    val dly       = math.max(1.0, dur * entryOff)
+    val dlyMS     = (dly * 1000).toLong
+    if (relay) client.scheduleTxn(dlyMS) { implicit tx =>
+      client.relayIterate(thisCh = channel)
+    }
+
+    if (stateRef().isDefined) {
+      // note: we don't have "retry" anything, because the
+      // relay keeps going above, independent of rendering
+      val msg = "state still busy"
+      log(s"playLogic() - WARNING: $msg")
+      Future.failed(new Exception(msg))
+
+    } else {
+
+      val stateId   = stateCnt.getAndTransform(_ + 1)
+      stateRef()    = new State(stateId)
+
+      val futIter   = iterate(stateId)
+
+      val timeoutMS = 60000L
+      val taskTimeout = client.scheduleTxn(timeoutMS) { implicit tx =>
+        if (stateRef().id == stateId) {
+          log(s"playLogic() - WARNING: timeout $stateId")
+          stateRef() = NoState
+          cancelRendering()
+        }
+      }
+
+      futIter.onComplete(_ => atomic { implicit tx =>
+        if (stateRef().id == stateId) {
+          stateRef() = NoState
+          taskTimeout.cancel()
+        }
+      })
+
+      futIter
+    }
+  }
+
+  def playAndIterate()(implicit tx: Txn): Future[Unit] = {
+    import TxnLike.peer
+    play()
+    iterate(-1)
+  }
+
+  def iterate(iterId: Int)(implicit tx: InTxn): Future[Unit] = {
+    log(s"iterate($iterId)")
 
     for {
       _     <- dbFill()
@@ -72,8 +150,6 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
       ()
     }
   }
-
-  private[this] implicit val random: TxRnd = TxnRandom.plain()
 
   ////////////////
   //  Database  //

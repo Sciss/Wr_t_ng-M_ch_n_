@@ -329,10 +329,12 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
   private[this] val stretchGrow     : Motion = Motion.walk(1.2, 2.0, 0.2)
   private[this] val stretchShrink   : Motion = Motion.walk(0.6, 0.95, 0.2)
 
+  private[this] val spaceDurMotion  : Motion = Motion.walk(1.2, 2.4, 0.1)
+
   private[this] val stretchMotion = Ref(stretchStable)
 
   private[this] val minPhaseDur =   3.0
-  private[this] val minPhInsDur =   3.0
+  private[this] val minPhInsDur =   1.5 // 3.0
   private[this] val maxPhaseDur =  30.0 // 150.0
   private[this] val minPhaseLen = (SR * minPhaseDur).toLong
   private[this] val minPhInsLen = (SR * minPhInsDur).toLong
@@ -369,8 +371,13 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
     val useBound  = random.nextDouble() <= ovrBoundaryProb
     val boundEnd  = useBound && random.nextDouble() > 0.667
     val jitAmt    = random.nextDouble()
+    val spaceDur  = spaceDurMotion.step()
 
-    val fut = if (len0 > minPhaseLen) SelectOverwrite(ph0.f, ctlCfg) else txFutureSuccessful(Span(0L, 0L))
+    val fut = if (len0 > minPhaseLen)
+      SelectOverwrite(ph0.f, ctlCfg, spaceDur = spaceDur)
+    else
+      txFutureSuccessful(Span(0L, 0L))
+
     fut.map { span0 =>
       val span1       = if (!useBound) span0 else {
         if (boundEnd) Span(len0 - span0.length, len0)
@@ -383,7 +390,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
       val newDiff1    = len1 - len0
       val newLength   = newDiff1 + span.length
       val instr       = OverwriteInstruction(span, newLength = newLength)
-      log(s"phSelectOverwrite() yields $instr")
+      log(f"phSelectOverwrite() yields $instr; fStretch $fStretch%g, spaceDur $spaceDur%g")
       instr
     }
   }

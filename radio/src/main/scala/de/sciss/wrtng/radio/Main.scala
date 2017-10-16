@@ -91,6 +91,26 @@ object Main extends MainLike {
       opt[Int] ("min-sound-nodes")
         .text (s"Minimum number of sound nodes for auto-start (default: ${default.minSoundNodes})")
         .action { (v, c) => c.copy(minSoundNodes = v) }
+
+      opt[Int] ("key-shutdown")
+        .text (s"Keypad key to trigger shutdown (1 to 9; default ${default.keyShutdown})")
+        .validate(i => if (i >= 1 && i <= 9) Right(()) else Left("Must be 1 to 9") )
+        .action { (v, c) => c.copy(keyShutdown = (v + '0').toChar) }
+
+      opt[Int] ("key-reboot")
+        .text (s"Keypad key to trigger reboot (1 to 9; default ${default.keyReboot})")
+        .validate(i => if (i >= 1 && i <= 9) Right(()) else Left("Must be 1 to 9") )
+        .action { (v, c) => c.copy(keyReboot = (v + '0').toChar) }
+
+      opt[Int] ("button-shutdown")
+        .text (s"Button 8-bit integer to trigger shutdown (default ${default.keyShutdown})")
+        .validate(i => if (i >= 1 && i <= 255) Right(()) else Left("Must be 1 to 255") )
+        .action { (v, c) => c.copy(buttonShutdown = v) }
+
+      opt[Int] ("button-reboot")
+        .text (s"Button 8-bit integer to trigger reboot (default ${default.keyShutdown})")
+        .validate(i => if (i >= 1 && i <= 255) Right(()) else Left("Must be 1 to 255") )
+        .action { (v, c) => c.copy(buttonReboot = v) }
     }
     p.parse(args, default).fold(sys.exit(1)) { config =>
       val localSocketAddress = Network.initConfig(config, this)
@@ -114,5 +134,18 @@ object Main extends MainLike {
     val c = OSCClient(config, localSocketAddress, source)
     c.init()
     new Heartbeat(c)
+
+    if (config.hasKeys || config.hasButtons) {
+      import sys.process._
+      val tpeArgs = if (config.hasKeys) {
+        Seq("--key-shutdown", config.keyShutdown.toString, "--key-reboot", config.keyReboot.toString)
+      } else {
+        Seq("--button-shutdown", config.buttonShutdown.toString, "--button-reboot", config.buttonReboot.toString)
+      }
+
+      val cmd = Seq("sudo", "imperfect-raspikeys", "--ip", localSocketAddress.getHostString, "--port",
+        localSocketAddress.getPort.toString) ++ tpeArgs
+      cmd.run()
+    }
   }
 }

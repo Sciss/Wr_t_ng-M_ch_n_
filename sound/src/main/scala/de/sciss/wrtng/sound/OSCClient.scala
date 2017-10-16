@@ -75,7 +75,23 @@ final class OSCClient(override val config: Config, val dot: Int, val transmitter
     addQuery(q)
   }
 
-  def oscReceived(p: osc.Packet, sender: SocketAddress): Unit = p match {
+  def oscReceived(p: osc.Packet, sender: SocketAddress): Unit = try {
+    tryOscReceived(p, sender)
+  } catch {
+    case ex: Throwable =>
+      log(s"oscReceived - exception: ${exceptionToOSC(ex)}")
+      Thread.sleep(2000)
+      // try another time
+      try {
+        tryOscReceived(p, sender)
+      } catch {
+        case _: Throwable =>
+          log("Retry didn't help. Forcing reboot.")
+          Util.reboot()
+      }
+  }
+
+  private def tryOscReceived(p: osc.Packet, sender: SocketAddress): Unit = p match {
     case Network.OscRadioRecSet(uid, off, bytes) =>
       radioUpdateTgt.single.get.fold[Unit] {
         transmitter.send(Network.OscRadioRecError(uid, "missing /update-init"), sender)

@@ -139,6 +139,12 @@ abstract class OSCClientLike {
       case osc.Message("/inject-abort" , _ @ _*) =>
       case osc.Message("/inject-commit", _ @ _*) =>
 
+      case osc.Message("/forward", cmdM: String, args @ _*) =>
+        val m = osc.Message(cmdM, args: _*)
+        socketSeqCtl.foreach { target =>
+          sendNow(m, target)
+        }
+
       case _ =>
         Console.err.println(s"Ignoring unknown OSC $p")
         val args = p match {

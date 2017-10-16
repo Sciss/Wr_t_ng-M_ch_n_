@@ -18,6 +18,9 @@ import java.net.InetSocketAddress
 
 import de.sciss.file._
 
+object Config {
+  final val NotPressed: Char = 'X'
+}
 /**
   * @param dumpOSC              if `true`, print incoming and outgoing OSC packets
   * @param isLaptop             if `true`, assume a test run from laptop, no GPIO etc.
@@ -38,9 +41,16 @@ final case class Config(
                          gqrxRecDir         : File          = userHome / "Music",
                          offline            : Option[File]  = None,
                          autoStart          : Boolean       = true,
-                         minSoundNodes      : Int           = 6
+                         minSoundNodes      : Int           = 6,
+                         keyShutdown        : Char          = Config.NotPressed,
+                         keyReboot          : Char          = Config.NotPressed,
+                         buttonShutdown     : Int           = 0,
+                         buttonReboot       : Int           = 0
                        )
   extends ConfigLike {
 
   def isLive: Boolean = offline.isEmpty
+
+  val hasKeys   : Boolean = keyShutdown != Config.NotPressed || keyReboot != Config.NotPressed
+  val hasButtons: Boolean = buttonShutdown != 0 || buttonReboot != 0
 }

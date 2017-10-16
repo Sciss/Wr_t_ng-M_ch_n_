@@ -20,13 +20,14 @@ hi pri
 - {OK} track timeout for iteration; ensure that iteration is not re-entered
 - {OK} rota speed-lim -- now we need the opposite; we need to rotate earlier, because the process
        takes longer to calculate; we could rotate earliest after radio-acquire has completed!
+- {OK} auto-start
+- {OK} observe if we still have RollbackError -- those need to be caught in the `received` loop
+       because the receiver does not do that (falls through `NonFatal(_)`).
+- {OK} hardware shutdown/reboot buttons
 - {  } prepare some long radio recording in case we have problems getting FM reception
-- {  } hardware shutdown/reboot buttons; volume control?
+- {  } volume control?
 - {  } plan for way to listen into radio to program channels
-- {  } auto-start
 - {  } quick level and channel check using noise
-- {  } observe if we still have RollbackError -- those need to be caught in the `received` loop
-       because the receiver doesn't do that (falls through `NonFatal(_)`).
 
 mid pri
 
@@ -34,7 +35,8 @@ mid pri
 
 lo pri
 
-- {  } modulate space-frames?
+- {OK} modulate space-frames?
+- {OK} shrink phase again after a while? seems to get stuck at 30s
 
 ## alsa-mixer
 

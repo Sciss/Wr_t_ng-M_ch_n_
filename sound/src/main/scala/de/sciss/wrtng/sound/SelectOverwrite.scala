@@ -44,12 +44,12 @@ object SelectOverwrite {
   private[this] val numMel    : Int     = 42
   private[this] val numCoef   : Int     = 21
   private[this] val sideDur   : Double  = 0.25
-  private[this] val spaceDur  : Double  = 1.5 // 0.5
+//  private[this] val spaceDur  : Double  = 1.5 // 0.5
   private[this] val minFreq   : Double  = 100
   private[this] val maxFreq   : Double  = 14000
   private[this] val witherTgt : Double  = 0.0012 / 30   // a threshold of 0.0012 in 30 iterations
 
-  def selectPart(fileIn: File): SelectPart = {
+  def selectPart(fileIn: File, spaceDur: Double): SelectPart = {
     import de.sciss.fscape.graph._
     val specIn      = AudioFile.readSpec(fileIn)
     import specIn.{numChannels, numFrames, sampleRate}
@@ -115,11 +115,11 @@ object SelectOverwrite {
     SelectPart(startFrame = startF, stopFrame = stopF)
   }
 
-  def apply(fileIn: File, ctlCfg: Control.Config)(implicit tx: InTxn): Future[Span] = {
+  def apply(fileIn: File, ctlCfg: Control.Config, spaceDur: Double)(implicit tx: InTxn): Future[Span] = {
     val pSpan = Promise[Vec[Long]]()
 
     val g = Graph {
-      val sel = selectPart(fileIn)
+      val sel = selectPart(fileIn, spaceDur = spaceDur)
       import de.sciss.fscape.graph._
       FutureLong(sel.startFrame ++ sel.stopFrame, pSpan)
     }
@@ -141,7 +141,7 @@ object SelectOverwrite {
     val pSpan = Promise[Vec[Long]]()
 
     val g = Graph {
-      val sel = selectPart(fileIn)
+      val sel = selectPart(fileIn, spaceDur = 0.5)
       // sel.startFrame.poll(0, "start-frame")
       // sel.stopFrame .poll(0, "stop-frame" )
 

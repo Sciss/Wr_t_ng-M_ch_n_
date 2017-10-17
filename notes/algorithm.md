@@ -25,13 +25,13 @@ hi pri
        because the receiver does not do that (falls through `NonFatal(_)`).
 - {OK} hardware shutdown/reboot buttons
 - {  } prepare some long radio recording in case we have problems getting FM reception
-- {  } volume control?
 - {  } plan for way to listen into radio to program channels
 - {  } quick level and channel check using noise
 
 mid pri
 
 - {  } proper db-span selection
+- {  } volume control?
 
 lo pri
 
@@ -52,3 +52,18 @@ lo pri
 - so if, e.g., 30 iterations produces the equivalent of 0.0012, we should clip at 100 iterations
   with the nominal control file level of 0 dBFS. then we could simply add 0.01 add each copy operation
   (and clip to 1.0). in the comparision, we scale down by 0.0012 / (0.01 * 30) = 0.004
+
+## match
+
+The idea is as follows:
+- we'll buffer the 'time-frequency-matrix' for the punch in and punch out, using `RepeatWindow`
+ (should be unproblematic in terms of keeping those in memory)
+- then we run the sliding mfcc just as in select-overwrite on the database, and link it with the 
+  two repeated windows through pearson
+- from overwrite-instruction and side-frames, we have
+  - punch-in : start = max(0, min(phrase-length, instr.span.start) - sideFrames); stop = min(phrase-length, start + sideFrames)
+  - punch-out: start = max(0, min(phrase-length, instr.span.stop )); stop = min(phrase-length, start + sideFrames)
+  - from this we calculate the offset between the two taps into the db: run-length = punch-out.start - punch-in.start
+  - from that we calculate the run length: db.length - sideFrames - run-length; if that's <= 0, abort here
+  - from that we calculate the number of window steps (/repetitions)
+  

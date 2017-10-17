@@ -15,6 +15,7 @@ package de.sciss.wrtng
 package sound
 
 import de.sciss.file._
+import de.sciss.fscape.gui.SimpleGUI
 import de.sciss.fscape.stream.Control
 import de.sciss.fscape.{GE, Graph}
 import de.sciss.span.Span
@@ -24,6 +25,7 @@ import de.sciss.wrtng.sound.Main.log
 
 import scala.concurrent.stm.InTxn
 import scala.concurrent.{Future, Promise}
+import scala.swing.Swing
 import scala.util.{Failure, Success}
 
 object SelectOverwrite {
@@ -149,8 +151,14 @@ object SelectOverwrite {
       FutureLong(sel.startFrame ++ sel.stopFrame, pSpan)
     }
 
-    g.renderAndWait().get
-    println("Done.")
+    val cfg = Control.Config()
+    cfg.useAsync = false
+    val c = Control(cfg)
+    c.run(g)
+
+    Swing.onEDT {
+      SimpleGUI(c)
+    }
 
     pSpan.future.onComplete {
       case Success(Vec(start, stop)) =>

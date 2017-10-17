@@ -20,10 +20,11 @@ import de.sciss.fscape.stream.Control
 import de.sciss.fscape.{GE, Graph}
 import de.sciss.kollflitz.Vec
 import de.sciss.span.Span
-import de.sciss.synth.io.{AudioFile, AudioFileSpec}
+import de.sciss.synth.io.AudioFile
+import de.sciss.wrtng.sound.Main.log
 
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Promise}
+import scala.concurrent.stm.InTxn
+import scala.concurrent.{Future, Promise}
 import scala.math.{max, min}
 import scala.swing.Swing
 import scala.util.{Failure, Success}
@@ -72,6 +73,28 @@ object SelectMatch {
     }
   }
 
+  def apply(filePhIn: File = file("ph.aif"), fileDbIn: File = file("db.aif"),
+            instr: OverwriteInstruction, ctlCfg: Control.Config)(implicit tx: InTxn): Future[Span] = {
+    val pSpan = Promise[Vec[Long]]()
+
+    val g = Graph {
+      val sel = selectPart(dbFile = fileDbIn, phFile = filePhIn, instr = instr)
+      import de.sciss.fscape.graph._
+      FutureLong(sel, pSpan)
+    }
+
+    val t0 = System.currentTimeMillis()
+
+    render[Span](ctlCfg, g) { implicit tx =>
+      val value = pSpan.future.value
+      val t1 = System.currentTimeMillis()
+      log(s"SelectMatch() - result value is $value - took ${(t1 - t0)/1000}s")
+      val xs = value.get.get
+      val offset = if (xs.isEmpty) 0L else xs.head
+      Span(offset, offset + instr.newLength)
+    }
+  }
+
   def run(config: Config): Unit = {
     val pOffset = Promise[Vec[Long]]()
 
@@ -112,6 +135,8 @@ object SelectMatch {
   //  private[this] val spaceDur  : Double  = 1.5 // 0.5
   private[this] val minFreq   : Double  = 100
   private[this] val maxFreq   : Double  = 14000
+  private[this] val maxDbDur  : Double  = 42.0     // limit, coz the Pi is too slow to run the entire 3 minutes in one rotation
+  private[this] val maxDbLen  : Long    = (maxDbDur * SR).toLong
 
   def selectPart(dbFile: File, phFile: File, instr: OverwriteInstruction): GE = {
     import de.sciss.fscape.graph._
@@ -157,8 +182,9 @@ object SelectMatch {
     val punchIn       = Span(punchInStart , punchInStart  + punchLen)
     val punchOut      = Span(punchOutStart, punchOutStart + punchLen)
 
+    val dbLen         = min(maxDbLen, dbSpec.numFrames)
     val dbDlyFrames   = max(0, instr.newLength  - sideFrames)
-    val runFrames     = max(0, dbSpec.numFrames - sideFrames - dbDlyFrames)
+    val runFrames     = max(0, dbLen - sideFrames - dbDlyFrames)
     val runSteps      = max(1, runFrames / stepSize)
 
     val dbSpanIn      = Span(0L, runFrames)

@@ -34,7 +34,8 @@ final case class Config(
                          alsaVolumeName       : String        = "Speaker",
                          alsaVolumeValue      : String        = "25",
                          keepPhase            : Boolean       = false,
-                         buttonCtrl           : Boolean       = false
+                         buttonCtrl           : Boolean       = false,
+                         simpleMatch          : Boolean       = false
 //                         keypad              : Boolean       = false
                        )
   extends ConfigLike

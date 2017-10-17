@@ -105,6 +105,10 @@ object Main extends MainLike {
         .text ("Enable RPi button control for shutdown (29) and reboot (30)")
         .action { (_, c) => c.copy(buttonCtrl = true) }
 
+      opt[Unit] ("simple-match")
+        .text ("Enable simple replacement matching")
+        .action { (_, c) => c.copy(simpleMatch = true) }
+
       //      opt[Double] ("bee-amp")
 //        .text (s"Amplitude (decibels) for bees (default ${default.beeAmp}")
 //        .validate { v => if (v >= -30 && v <= 30) success else failure("Must be >= -30 and <= 30") }

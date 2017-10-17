@@ -110,7 +110,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
 
       val futIter   = iterate(stateId)
 
-      val timeoutMS = 60000L
+      val timeoutMS = 150000L
       val taskTimeout = client.scheduleTxn(timeoutMS) { implicit tx =>
         if (stateRef().id == stateId) {
           log(s"playLogic() - WARNING: timeout $stateId")
@@ -276,12 +276,20 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
   }
 
   def dbFindMatch(instr: OverwriteInstruction)(implicit tx: InTxn): Future[Span] = {
-    val len0 = dbFile().numFrames
-    // XXX TODO
-    txFutureSuccessful {
-      val span = Span(0L, min(len0, instr.newLength))
-      log(s"dbFindMatch($instr) yields $span")
-      span
+    val phF     = phFile()
+    val dbF     = dbFile()
+    val len0    = dbFile().numFrames
+    val outLen  = min(len0, instr.newLength)
+    val instr1  = instr.copy(newLength = outLen)
+
+    if (config.simpleMatch) {
+      txFutureSuccessful {
+        val span = Span(0L, outLen)
+        log(s"dbFindMatch($instr) yields $span")
+        span
+      }
+    } else {
+      SelectMatch(filePhIn = phF.f, fileDbIn = dbF.f, instr = instr1, ctlCfg = ctlCfg)
     }
   }
 

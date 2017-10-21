@@ -129,7 +129,10 @@ object SelectOverwrite {
     render[Span](ctlCfg, g) { implicit tx =>
       val value = pSpan.future.value
       log(s"SelectOverwrite() - result value is $value")
-      val Vec(start, stop) = value.get.get
+      val xs = value.get.get
+      val start = if (xs.size > 0) xs(0) else 0L
+      val stop  = if (xs.size > 1) xs(1) else (start + (4 * SR)).toLong
+//      val Vec(start, stop) = value.get.get
       Span(start, stop)
     }
   }

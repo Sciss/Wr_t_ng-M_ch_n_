@@ -2,7 +2,7 @@
  *  AlgorithmImpl.scala
  *  (Wr_t_ng-M_ch_n_)
  *
- *  Copyright (c) 2017 Hanns Holger Rutz. All rights reserved.
+ *  Copyright (c) 2017-2019 Hanns Holger Rutz. All rights reserved.
  *
  *  This software is published under the GNU General Public License v3+
  *
@@ -19,8 +19,8 @@ import akka.actor.ActorSystem
 import de.sciss.file._
 import de.sciss.fscape.stream.Control
 import de.sciss.fscape.{GE, Graph}
-import de.sciss.lucre.confluent.TxnRandom
 import de.sciss.lucre.stm.TxnLike
+import de.sciss.lucre.stm.impl.RandomImpl.BaseImpl
 import de.sciss.lucre.synth.Txn
 import de.sciss.numbers
 import de.sciss.span.Span
@@ -37,7 +37,13 @@ import scala.util.control.NonFatal
 final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algorithm {
   import client.config
 
-  private[this] implicit val random: TxRnd = TxnRandom.plain()
+  private[this] implicit object random extends BaseImpl[InTxn] {
+    private[this] val ref = Ref.make[Long]()
+
+    protected def refSet(seed: Long)(implicit tx: InTxn): Unit = ref.set(seed)
+
+    protected def refGet(implicit tx: InTxn): Long = ref.get
+  }
 
   def init(): this.type = {
     dbInit()
@@ -52,7 +58,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
     if (ph0.numFrames > 4800) {
       val fadeIn  = 0.1f
       import numbers.Implicits._
-      val fadeOut = random.nextFloat().linlin(0, 1, 0.1f, 0.5f)
+      val fadeOut = random.nextFloat().linLin(0, 1, 0.1f, 0.5f)
       val start   = 0L
       val stop    = ph0.numFrames
       client.scene.play(ph0, ch = channel, start = start, stop = stop, fadeIn = fadeIn, fadeOut = fadeOut)
@@ -244,7 +250,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
       val loudCorr = {
         val tgt   = 72.0
         val dif   = tgt - loudMax
-        ((dif.abs.pow(0.85) * dif.signum) * 1.28).dbamp.min(24)
+        ((dif.abs.pow(0.85) * dif.signum) * 1.28).dbAmp.min(24)
       }
       val inApp   = (AudioFileIn(fileApp, numChannels = 1) * loudCorr).clip2(1.0)
 
@@ -259,7 +265,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
         val post    = inApp.drop(fdLen)
         pre ++ cross ++ post
       }
-      AudioFileOut(db1F, dbAfSpec, in = cat)
+      AudioFileOut(file = db1F, spec = dbAfSpec, in = cat)
     }
 
     render[Long](ctlCfg, g) { implicit tx =>
@@ -460,7 +466,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
 
         insPre ++ cross ++ insPost
       }
-      AudioFileOut(ph1F, phAfSpec, in = insCat.clip2(1.0))
+      AudioFileOut(file = ph1F, spec = phAfSpec, in = insCat.clip2(1.0))
 
       val remPre  = inDb.take(dbPos)
       val remPost = inDb.drop(dbSpan.start + spliceLen)
@@ -471,7 +477,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
       } else {
         ???
       }
-      AudioFileOut(db1F, dbAfSpec, in = remCat)
+      AudioFileOut(file = db1F, spec = dbAfSpec, in = remCat)
     }
 
     render[Unit](ctlCfg, g) { implicit tx =>

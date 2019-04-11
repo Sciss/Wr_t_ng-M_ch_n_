@@ -2,7 +2,7 @@
  *  MotionImpl.scala
  *  (Wr_t_ng-M_ch_n_)
  *
- *  Copyright (c) 2017 Hanns Holger Rutz. All rights reserved.
+ *  Copyright (c) 2017-2019 Hanns Holger Rutz. All rights reserved.
  *
  *  This software is published under the GNU General Public License v3+
  *
@@ -24,18 +24,18 @@ object MotionImpl {
   
   def const(value: Double): Motion = Constant(value)
 
-  def linrand(lo: Double, hi: Double)(implicit random: TxRnd): Motion = LinRand(lo, hi)
+  def linRand(lo: Double, hi: Double)(implicit random: TxRnd): Motion = LinRand(lo, hi)
 
-  def exprand(lo: Double, hi: Double)(implicit random: TxRnd): Motion = ExpRand(lo, hi)
+  def expRand(lo: Double, hi: Double)(implicit random: TxRnd): Motion = ExpRand(lo, hi)
 
   def sine(lo: Double, hi: Double, period: Int): Motion = Sine(lo, hi, period)
 
   def walk(lo: Double, hi: Double, maxStep: Double)(implicit random: TxRnd): Motion = Walk(lo, hi, maxStep)
 
-  def linlin(in: Motion, inLo: Double, inHi: Double, outLo: Double, outHi: Double): Motion =
+  def linLin(in: Motion, inLo: Double, inHi: Double, outLo: Double, outHi: Double): Motion =
     LinLin(in, inLo, inHi, outLo, outHi)
 
-  def linexp(in: Motion, inLo: Double, inHi: Double, outLo: Double, outHi: Double): Motion =
+  def linExp(in: Motion, inLo: Double, inHi: Double, outLo: Double, outHi: Double): Motion =
     LinExp(in, inLo, inHi, outLo, outHi)
 
   def coin(prob: Double, a: Motion, b: Motion)(implicit random: TxRnd): Motion = Coin(prob, a, b)
@@ -105,7 +105,7 @@ object MotionImpl {
     
     def step()(implicit tx: InTxn): Double = {
       import synth._
-      in.step().linlin(inLo, inHi, outLo, outHi)
+      in.step().linLin(inLo, inHi, outLo, outHi)
     }
   }
 
@@ -113,7 +113,7 @@ object MotionImpl {
     extends Motion {
     def step()(implicit tx: InTxn): Double = {
       import synth._
-      in.step().linexp(inLo, inHi, outLo, outHi)
+      in.step().linLin(inLo, inHi, outLo, outHi)
     }
   }
 }

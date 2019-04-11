@@ -2,7 +2,7 @@
  *  SelectMatch.scala
  *  (Wr_t_ng-M_ch_n_)
  *
- *  Copyright (c) 2017 Hanns Holger Rutz. All rights reserved.
+ *  Copyright (c) 2017-2019 Hanns Holger Rutz. All rights reserved.
  *
  *  This software is published under the GNU General Public License v3+
  *
@@ -152,7 +152,7 @@ object SelectMatch {
       // there is a bloody bug in fscape audio-file-in with the second channel dangling.
       // this seems to fix it
       Length(in).poll(0, "length-ph-in")
-      in \ 0
+      in out 0
     }
 
 //    // XXX TODO --- enabling this prevents some hanging. but why?

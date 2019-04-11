@@ -1,3 +1,16 @@
+/*
+ *  FutureSeq.scala
+ *  (Wr_t_ng-M_ch_n_)
+ *
+ *  Copyright (c) 2017-2019 Hanns Holger Rutz. All rights reserved.
+ *
+ *  This software is published under the GNU General Public License v3+
+ *
+ *
+ *  For further information, please contact Hanns Holger Rutz at
+ *  contact@sciss.de
+ */
+
 package de.sciss.fscape
 package stream
 
@@ -11,7 +24,7 @@ import scala.util.Success
 object FutureSeq {
   def apply[A, E >: Null <: BufElem[A]](in: Outlet[E], p: Promise[Vec[A]])
                                        (implicit b: Builder): Unit = {
-    val stage0  = new Stage[A, E](p)
+    val stage0  = new Stage[A, E](b.layer, p)
     val stage   = b.add(stage0)
     b.connect(in, stage.in)
   }
@@ -20,19 +33,21 @@ object FutureSeq {
 
   private type Shape[E <: BufLike] = SinkShape[E]
 
-  private final class Stage[A, E >: Null <: BufElem[A]](p: Promise[Vec[A]])(implicit ctrl: Control)
+  private final class Stage[A, E >: Null <: BufElem[A]](layer: Layer, p: Promise[Vec[A]])
+                                                       (implicit ctrl: Control)
     extends StageImpl[Shape[E]](name) {
 
     val shape = new SinkShape(
       in = Inlet[E](s"$name.in")
     )
 
-    def createLogic(attr: Attributes) = new Logic[A, E](shape, p)
+    def createLogic(attr: Attributes) = new Logic[A, E](shape, layer, p)
   }
 
-  private final class Logic[A, E >: Null <: BufElem[A]](shape: Shape[E], p: Promise[Vec[A]])
+  private final class Logic[A, E >: Null <: BufElem[A]](shape: Shape[E], layer: Layer,
+                                                        p: Promise[Vec[A]])
                                                        (implicit ctrl: Control)
-    extends NodeImpl(name, shape)
+    extends NodeImpl(name, layer, shape)
       with Sink1Impl[E] {
 
     private[this] val builder = Vector.newBuilder[A]

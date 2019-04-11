@@ -2,7 +2,7 @@
  *  SoundScene.scala
  *  (Wr_t_ng-M_ch_n_)
  *
- *  Copyright (c) 2017 Hanns Holger Rutz. All rights reserved.
+ *  Copyright (c) 2017-2019 Hanns Holger Rutz. All rights reserved.
  *
  *  This software is published under the GNU General Public License v3+
  *
@@ -54,7 +54,7 @@ final class SoundScene(c: OSCClient) {
   private[this] lazy val pingGraph: SynthGraph = SynthGraph {
     import de.sciss.synth.Ops.stringToControl
     import de.sciss.synth.ugen._
-    val freq  = LFNoise0.ar(10).linexp(-1, 1, 200, 6000)
+    val freq  = LFNoise0.ar(10).linExp(-1, 1, 200, 6000)
     val osc   = SinOsc.ar(freq) * 0.33
     val line  = Line.ar(1, 0, 2, doneAction = freeSelf)
     val sig   = osc * line
@@ -79,7 +79,7 @@ final class SoundScene(c: OSCClient) {
     val fdIn    = "fadeIn"  .ir
     val fdOut   = "fadeOut" .ir
     val disk    = VDiskIn.ar(numChannels = 2, buf = buf, speed = BufRateScale.ir(buf), loop = 0)
-    val chan    = disk \ 0 // if (numChannels == 1) disk else Select.ar(bus, disk)
+    val chan    = disk out 0 // if (numChannels == 1) disk else Select.ar(bus, disk)
     val hpf     = HPF.ar(chan, 80f)
     val env     = Env.linen(attack = fdIn, sustain = dur - (fdIn + fdOut), release = fdOut, curve = Curve.sine)
     val amp     = "amp".kr(1f)
@@ -100,7 +100,7 @@ final class SoundScene(c: OSCClient) {
     val amp     = "amp".kr(1f)
     val limDur  = 0.01f
     val limIn   = in * amp
-    val lim     = Limiter.ar(limIn, level = -0.2.dbamp, dur = limDur)
+    val lim     = Limiter.ar(limIn, level = -0.2.dbAmp, dur = limDur)
     val sig     = lim
     ReplaceOut.ar(0 /* bus */, sig)
   }

@@ -2,7 +2,7 @@
  *  package.scala
  *  (Wr_t_ng-M_ch_n_)
  *
- *  Copyright (c) 2017 Hanns Holger Rutz. All rights reserved.
+ *  Copyright (c) 2017-2019 Hanns Holger Rutz. All rights reserved.
  *
  *  This software is published under the GNU General Public License v3+
  *
@@ -15,7 +15,7 @@ package de.sciss.wrtng
 
 import de.sciss.fscape.Graph
 import de.sciss.fscape.stream.Control
-import de.sciss.lucre.confluent.TxnRandom
+import de.sciss.lucre.stm.Random
 import de.sciss.span.Span
 
 import scala.concurrent.duration.Duration
@@ -127,7 +127,7 @@ package object sound {
     txnExec(fun)
   }
 
-  type TxRnd = TxnRandom[InTxn]
+  type TxRnd = Random[InTxn]
 
   private[this] val currentRendering = Ref(Option.empty[Control])
 

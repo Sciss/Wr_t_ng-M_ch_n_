@@ -9,22 +9,26 @@ lazy val soundNameL = s"$baseNameL-sound"
 lazy val radioName  = s"$baseName-Radio"
 lazy val radioNameL = s"$baseNameL-radio"
 
-lazy val projectVersion = "0.2.6"
+lazy val projectVersion = "0.3.0-SNAPSHOT"
 
-lazy val audioFileVersion       = "1.4.6"
-lazy val desktopVersion         = "0.8.0"
-lazy val equalVersion           = "0.1.2"
-lazy val fileUtilVersion        = "1.1.3"
-lazy val fscapeVersion          = "2.9.1"
-lazy val kollFlitzVersion       = "0.2.1"
-lazy val modelVersion           = "0.3.4"
-lazy val numbersVersion         = "0.1.3"
-lazy val scalaOSCVersion        = "1.1.5"
-lazy val scalaSTMVersion        = "0.8"
-lazy val scoptVersion           = "3.7.0"
-lazy val soundProcessesVersion  = "3.14.1"
-lazy val swingPlusVersion       = "0.2.4"
-lazy val akkaVersion            = "2.4.20" // N.B. should match with FScape's
+lazy val deps = new {
+  val main = new {
+    val akka            = "2.5.19" // N.B. should match with FScape's
+    val audioFile       = "1.5.2"
+    val desktop         = "0.10.2"
+    val equal           = "0.1.3"
+    val fileUtil        = "1.1.3"
+    val fscape          = "2.24.0"
+    val kollFlitz       = "0.2.3"
+    val model           = "0.3.4"
+    val numbers         = "0.2.0"
+    val scalaOSC        = "1.2.0"
+    val scalaSTM        = "0.9"
+    val scopt           = "3.7.1"
+    val soundProcesses  = "3.27.1"
+    val swingPlus       = "0.4.1"
+  }
+}
 
 lazy val loggingEnabled = true
 
@@ -34,7 +38,7 @@ lazy val commonSettings = Seq(
   homepage           := Some(url(s"https://github.com/Sciss/$baseName")),
   description        := "A sound installation",
   licenses           := Seq("GPL v3+" -> url("http://www.gnu.org/licenses/gpl-3.0.txt")),
-  scalaVersion       := "2.12.3",
+  scalaVersion       := "2.12.8",
   resolvers          += "Oracle Repository" at "http://download.oracle.com/maven",  // required for sleepycat
   scalacOptions     ++= Seq("-deprecation", "-unchecked", "-feature", "-encoding", "utf8", "-Xfuture", "-Xlint:-stars-align,_"),
   scalacOptions     ++= {
@@ -63,13 +67,13 @@ lazy val common = Project(id = s"$baseNameL-common", base = file("common"))
   .settings(
     name := s"$baseName Common",
     libraryDependencies ++= Seq(
-      "de.sciss"          %% "kollflitz"  % kollFlitzVersion,
-      "de.sciss"          %% "fileutil"   % fileUtilVersion,
-      "de.sciss"          %% "scalaosc"   % scalaOSCVersion,
-      "com.github.scopt"  %% "scopt"      % scoptVersion,
-      "de.sciss"          %% "equal"      % equalVersion,
-      "de.sciss"          %% "numbers"    % numbersVersion,
-      "org.scala-stm"     %% "scala-stm"  % scalaSTMVersion
+      "de.sciss"          %% "kollflitz"  % deps.main.kollFlitz,
+      "de.sciss"          %% "fileutil"   % deps.main.fileUtil,
+      "de.sciss"          %% "scalaosc"   % deps.main.scalaOSC,
+      "com.github.scopt"  %% "scopt"      % deps.main.scopt,
+      "de.sciss"          %% "equal"      % deps.main.equal,
+      "de.sciss"          %% "numbers"    % deps.main.numbers,
+      "org.scala-stm"     %% "scala-stm"  % deps.main.scalaSTM
     )
   )
 
@@ -84,8 +88,9 @@ lazy val sound = Project(id = soundNameL, base = file("sound"))
     buildInfoPackage := "de.sciss.wrtng.sound",
     mainClass in Compile := Some("de.sciss.wrtng.sound.Main"),
     libraryDependencies ++= Seq(
-      "de.sciss" %% "soundprocesses-core" % soundProcessesVersion,
-      "de.sciss" %% "fscape-lucre"        % fscapeVersion
+      "de.sciss" %% "audiofile"           % deps.main.audioFile,
+      "de.sciss" %% "soundprocesses-core" % deps.main.soundProcesses,
+      "de.sciss" %% "fscape-lucre"        % deps.main.fscape
     )
   )
   .settings(soundDebianSettings)
@@ -101,8 +106,8 @@ lazy val radio = Project(id = radioNameL, base = file("radio"))
     buildInfoPackage := "de.sciss.wrtng.radio",
     mainClass in Compile := Some("de.sciss.wrtng.radio.Main"),
     libraryDependencies ++= Seq(
-      "de.sciss"          %% "scalaaudiofile" % audioFileVersion,
-      "com.typesafe.akka" %% "akka-actor"     % akkaVersion
+      "de.sciss"          %% "audiofile"      % deps.main.audioFile,
+      "com.typesafe.akka" %% "akka-actor"     % deps.main.akka
     )
   )
   .settings(radioDebianSettings)
@@ -113,10 +118,10 @@ lazy val control = Project(id = s"$baseNameL-control", base = file("control"))
   .settings(
     name := s"$baseName-Control",
     libraryDependencies ++= Seq(
-      "de.sciss" %% "swingplus"      % swingPlusVersion,
-      "de.sciss" %% "desktop"        % desktopVersion,
-      "de.sciss" %% "model"          % modelVersion
-//      "de.sciss" %% "soundprocesses" % soundProcessesVersion
+      "de.sciss" %% "swingplus"      % deps.main.swingPlus,
+      "de.sciss" %% "desktop"        % deps.main.desktop,
+      "de.sciss" %% "model"          % deps.main.model
+//      "de.sciss" %% "soundprocesses" % deps.main.soundProcesses
     )
   )
 

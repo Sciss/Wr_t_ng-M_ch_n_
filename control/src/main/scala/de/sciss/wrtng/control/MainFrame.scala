@@ -15,18 +15,17 @@ package de.sciss.wrtng
 package control
 
 import java.util.Comparator
+
 import javax.swing.table.{AbstractTableModel, DefaultTableCellRenderer, TableCellRenderer, TableRowSorter}
 import javax.swing.{ButtonGroup, Icon, JTable, SwingConstants}
-
 import de.sciss.desktop.{FileDialog, OptionPane}
 import de.sciss.file._
 import de.sciss.osc
-import de.sciss.swingplus.Table
 
 import scala.collection.immutable.{IndexedSeq => Vec}
 import scala.swing.Table.AutoResizeMode
 import scala.swing.event.{ButtonClicked, TableRowsSelected, ValueChanged}
-import scala.swing.{BorderPanel, BoxPanel, Button, Component, FlowPanel, Frame, Label, Orientation, ScrollPane, Slider, Swing, ToggleButton}
+import scala.swing.{BorderPanel, BoxPanel, Button, Component, FlowPanel, Frame, Label, Orientation, ScrollPane, Slider, Swing, Table, ToggleButton}
 
 class MainFrame(c: OSCClient) {
   private case class Column(idx: Int, name: String, minWidth: Int, prefWidth: Int, maxWidth: Int,
@@ -306,7 +305,7 @@ class MainFrame(c: OSCClient) {
     reactions += {
       case ValueChanged(_) =>
         import de.sciss.numbers.Implicits._
-        val amp = if (value == min) 0f else value.dbamp
+        val amp = if (value == min) 0f else value.dbAmp
         c ! Network.OscSetVolume(amp)
     }
   }

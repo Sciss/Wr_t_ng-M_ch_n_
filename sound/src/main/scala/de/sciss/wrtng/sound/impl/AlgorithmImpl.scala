@@ -103,7 +103,7 @@ final class AlgorithmImpl(val client: OSCClient, val channel: Int) extends Algor
     }
 
     if (stateRef().isDefined) {
-      // note: we don't have "retry" anything, because the
+      // note: we don't have to "retry" anything, because the
       // relay keeps going above, independent of rendering
       val msg = "state still busy"
       log(s"playLogic() - WARNING: $msg")

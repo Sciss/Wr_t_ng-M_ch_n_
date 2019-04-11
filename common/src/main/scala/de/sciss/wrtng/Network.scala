@@ -133,8 +133,13 @@ object Network {
         println(s"Designated IP is $desiredIP. Updating /etc/dhcpcd.conf...")
         val header = "interface eth0"
         Seq("cp", confPath, s"$confPath.BAK").!
-        val init = io.Source.fromFile(file(confPath)).getLines().toList
-          .takeWhile(ln => ln.trim() != header).mkString("\n")
+        val src   = scala.io.Source.fromFile(file(confPath))
+        val init  = try {
+          src.getLines().toList
+            .takeWhile(ln => ln.trim() != header).mkString("\n")
+        } finally {
+          src.close()
+        }
         val tail =
           s"""$header
              |
